@@ -31,9 +31,9 @@
       // Dat GUI
       var gui = new dat.GUI();
       var props = {
-        speed: 1,
+        speed: 0,
       };
-      gui.add(props, "speed").min(-5).max(5).step(1);
+      gui.add(props, "speed").min(-80).max(80).step(.08);
 
       // Unix timestamp in seconds to (floating point) day number
       var zulu = +new Date("1999-12-31T00:00Z") / 1000;
@@ -211,7 +211,7 @@
         {
           speed: function () {
             var sign = props.speed > 0 ? 1 : props.speed < 0 ? -1 : 0;
-            var speed = sign * Math.pow(10, Math.abs(props.speed) - 1) * 86400;
+              var speed = sign * 365*86400*Math.abs(props.speed)+1;
             return speed;
           },
         }
