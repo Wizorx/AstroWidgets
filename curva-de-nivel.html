@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>MathBox - Surface</title>
+    <title>MathBox - Hyperbolic Curvature</title>
     <script
       type="text/javascript"
       src="https://cdn.jsdelivr.net/npm/three@0.137.0/build/three.min.js"
@@ -12,32 +12,34 @@
       src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/controls/OrbitControls.js"
     ></script>
     <!--
-      - a minified version mathbox.min.js is also available;
-      - recommend using a specific version (not @latest) in public sites
+       - a minified version mathbox.min.js is also available;
+       - recommend using a specific version (not @latest) in public sites
     -->
     <script
       type="text/javascript"
       src="https://cdn.jsdelivr.net/npm/mathbox@latest/build/bundle/mathbox.js"
     ></script>
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/mathbox@latest/build/mathbox.css"
-    />
+    <script src="https://cdn.jsdelivr.net/npm/dat.gui@latest/build/dat.gui.min.js"></script>
+    <link rel="stylesheet" href="../../build/mathbox.css" />
     <meta name="viewport" content="initial-scale=1, maximum-scale=1" />
   </head>
   <body>
     <script>
-      mathbox = MathBox.mathBox({
-        plugins: ["core", "controls", "cursor", "stats"],
+      var mathbox = MathBox.mathBox({
+        plugins: ["core", "controls", "cursor", "mathbox"],
         controls: {
+          // Orbit controls, i.e. Euler angles, with gimbal lock
           klass: THREE.OrbitControls,
+
+          // Trackball controls, i.e. Free quaternion rotation
+          //klass: THREE.TrackballControls,
         },
       });
-      three = mathbox.three;
+      if (mathbox.fallback) throw "WebGL not supported";
 
-      three.camera.position.set(-3.5, 2.2, -3.3);
+      var three = mathbox.three;
       three.renderer.setClearColor(new THREE.Color(0x191919), 1.0);
-
+      
       view = mathbox.cartesian({
         range: [
           [-3, 3],
