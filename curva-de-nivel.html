@@ -25,23 +25,17 @@
   </head>
   <body>
     <script>
-      var mathbox = MathBox.mathBox({
-        plugins: ["core", "controls", "cursor", "mathbox"],
+      mathbox = MathBox.mathBox({
+        plugins: ["core", "controls", "cursor", "stats"],
         controls: {
-          // Orbit controls, i.e. Euler angles, with gimbal lock
           klass: THREE.OrbitControls,
-
-          // Trackball controls, i.e. Free quaternion rotation
-          //klass: THREE.TrackballControls,
         },
       });
-      if (mathbox.fallback) throw "WebGL not supported";
+      three = mathbox.three;
 
-      var three = mathbox.three;
-      three.renderer.setClearColor(new THREE.Color(0x191919), 1.0);
       three.camera.position.set(-3.5, 2.2, -3.3);
+      three.renderer.setClearColor(new THREE.Color(0x191919), 1.0);
 
-      
       view = mathbox.cartesian({
         range: [
           [-3, 3],
