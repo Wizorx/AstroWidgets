@@ -6,22 +6,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
     <style>
-    html, body, div, canvas {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-  position: relative;
-  }
-      canvas {
-        height: 100vh ;
-    margin-right: auto;
-    margin-left: auto;
-    display: block;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="canvas-container"></div>
+      body {
+    margin: 0;
+          overflow: hidden;
+    }
+        canvas {
+          width: 100vw;
+          height: 100vh;
+          object-fit: contain;
+     text-align:center;
+        }
+      </style>
+    </head>
+    <body>
+      <div id="canvas-container" style = "text-align:center;"></div>
     <script src="eigenspace.dart.js"></script>
   </body>
 </html>
