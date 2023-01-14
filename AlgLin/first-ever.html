@@ -8,18 +8,25 @@
     <style>
       body {
     margin: 0;
-          overflow: hidden;
+    padding: 0;
+    border: 0;
+          background-color: #191919;
     }
-        canvas {
-          width: 100vw;
-          height: 100vh;
-          object-fit: contain;
-     text-align:center;
-        }
-      </style>
-    </head>
-    <body>
-      <div id="canvas-container" style = "text-align:center;"></div>
+      canvas {
+        object-fit: contain;
+        height: 99vh;
+        width: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="canvas-container" style = "
+      position: absolute;
+  top: 50%;
+  left: 50%;
+  -ms-transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%)"></div>
     <script src="first-ever.dart.js"></script>
   </body>
 </html>
+ 
