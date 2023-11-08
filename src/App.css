@@ -36,3 +36,23 @@
     transform: rotate(360deg);
   }
 }
+
+@import "mafs/core.css";
+
+.MafsView {
+  --mafs-bg: rgb(25, 25, 25);
+  --mafs-fg: rgb(255, 255, 255);
+  --mafs-line-color: #ffffff98;
+  --grid-line-subdivision-color: #ffffff69; ;
+
+}
+
+
+.mafs-container {
+  display: flex;
+  justify-content: space-between;
+}
+
+.mafs-item {
+  width: 330px;
+}
