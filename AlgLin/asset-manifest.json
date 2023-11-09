@@ -1,8 +1,8 @@
 {
   "files": {
-    "main.css": "./static/css/main.01793a11.css",
-    "main.js": "./static/js/main.3773a282.js",
-    "static/js/787.f2d61a6b.chunk.js": "./static/js/787.f2d61a6b.chunk.js",
+    "main.css": "./static/css/main.1d608889.css",
+    "main.js": "./static/js/main.d893853c.js",
+    "static/js/787.03c453a2.chunk.js": "./static/js/787.03c453a2.chunk.js",
     "static/media/cmu-serif-500-roman.ttf": "./static/media/cmu-serif-500-roman.bf7ccd25523b20a288b9.ttf",
     "static/media/cmu-serif-700-roman.ttf": "./static/media/cmu-serif-700-roman.45b78465c34fdb77cbdc.ttf",
     "static/media/cmu-serif-500-italic.ttf": "./static/media/cmu-serif-500-italic.49618ae7cdca569ab200.ttf",
@@ -72,12 +72,12 @@
     "static/media/KaTeX_Size3-Regular.woff": "./static/media/KaTeX_Size3-Regular.7947224e8a9914fa332b.woff",
     "static/media/KaTeX_Size3-Regular.woff2": "./static/media/KaTeX_Size3-Regular.e1951519f6f0596f7356.woff2",
     "index.html": "./index.html",
-    "main.01793a11.css.map": "./static/css/main.01793a11.css.map",
-    "main.3773a282.js.map": "./static/js/main.3773a282.js.map",
-    "787.f2d61a6b.chunk.js.map": "./static/js/787.f2d61a6b.chunk.js.map"
+    "main.1d608889.css.map": "./static/css/main.1d608889.css.map",
+    "main.d893853c.js.map": "./static/js/main.d893853c.js.map",
+    "787.03c453a2.chunk.js.map": "./static/js/787.03c453a2.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.01793a11.css",
-    "static/js/main.3773a282.js"
+    "static/css/main.1d608889.css",
+    "static/js/main.d893853c.js"
   ]
 }
