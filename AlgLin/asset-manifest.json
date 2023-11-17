@@ -1,16 +1,8 @@
 {
   "files": {
-    "main.css": "./static/css/main.1d608889.css",
-    "main.js": "./static/js/main.d893853c.js",
+    "main.css": "./static/css/main.1b5e03f0.css",
+    "main.js": "./static/js/main.ba2e5296.js",
     "static/js/787.03c453a2.chunk.js": "./static/js/787.03c453a2.chunk.js",
-    "static/media/cmu-serif-500-roman.ttf": "./static/media/cmu-serif-500-roman.bf7ccd25523b20a288b9.ttf",
-    "static/media/cmu-serif-700-roman.ttf": "./static/media/cmu-serif-700-roman.45b78465c34fdb77cbdc.ttf",
-    "static/media/cmu-serif-500-italic.ttf": "./static/media/cmu-serif-500-italic.49618ae7cdca569ab200.ttf",
-    "static/media/cmu-serif-700-italic.ttf": "./static/media/cmu-serif-700-italic.4f17c6e7a6273c334581.ttf",
-    "static/media/cmu-serif-500-roman.woff2": "./static/media/cmu-serif-500-roman.87d0cf42c867c8f09b9a.woff2",
-    "static/media/cmu-serif-700-roman.woff2": "./static/media/cmu-serif-700-roman.cfeffe22f7b8d68454f8.woff2",
-    "static/media/cmu-serif-500-italic.woff2": "./static/media/cmu-serif-500-italic.8b5fa9b98755bfcf1282.woff2",
-    "static/media/cmu-serif-700-italic.woff2": "./static/media/cmu-serif-700-italic.a855a4a230d35608fa20.woff2",
     "static/media/KaTeX_AMS-Regular.ttf": "./static/media/KaTeX_AMS-Regular.853be92419a6c3766b9a.ttf",
     "static/media/KaTeX_Main-Regular.ttf": "./static/media/KaTeX_Main-Regular.9eba1d77abcf2aa6e94e.ttf",
     "static/media/KaTeX_Main-Bold.ttf": "./static/media/KaTeX_Main-Bold.8169508bf58f8bd92ad8.ttf",
@@ -72,12 +64,12 @@
     "static/media/KaTeX_Size3-Regular.woff": "./static/media/KaTeX_Size3-Regular.7947224e8a9914fa332b.woff",
     "static/media/KaTeX_Size3-Regular.woff2": "./static/media/KaTeX_Size3-Regular.e1951519f6f0596f7356.woff2",
     "index.html": "./index.html",
-    "main.1d608889.css.map": "./static/css/main.1d608889.css.map",
-    "main.d893853c.js.map": "./static/js/main.d893853c.js.map",
+    "main.1b5e03f0.css.map": "./static/css/main.1b5e03f0.css.map",
+    "main.ba2e5296.js.map": "./static/js/main.ba2e5296.js.map",
     "787.03c453a2.chunk.js.map": "./static/js/787.03c453a2.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.1d608889.css",
-    "static/js/main.d893853c.js"
+    "static/css/main.1b5e03f0.css",
+    "static/js/main.ba2e5296.js"
   ]
 }
