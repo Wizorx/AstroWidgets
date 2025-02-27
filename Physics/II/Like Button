@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html>
+<body style="background-color:#191919;">
+<!-- LikeBtn.com BEGIN -->
+<span class="likebtn-wrapper" data-theme="custom" data-icon_l="thmb4-u" data-icon_d="thmb4-d" data-icon_l_c="#ffffff" data-icon_l_c_v="#008cff" data-icon_d_c="#ffffff" data-icon_d_c_v="#fb0505" data-label_c="#ffffff" data-label_c_v="#008cff" data-counter_l_c="#ffffff" data-counter_d_c="#ffffff" data-bg_c="#191919" data-bg_c_v="#191919" data-f_family="Tahoma" data-label_fs="r" data-lang="pt_BR" data-identifier="item_1" data-show_dislike_label="true"></span>
+<script>(function(d,e,s){if(d.getElementById("likebtn_wjs"))return;a=d.createElement(e);m=d.getElementsByTagName(e)[0];a.async=1;a.id="likebtn_wjs";a.src=s;m.parentNode.insertBefore(a, m)})(document,"script","//w.likebtn.com/js/w/widget.js");</script>
+<!-- LikeBtn.com END -->
+</body>
+</html>
+
