@@ -134,6 +134,11 @@
             });
 
             renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+            
+            // Touch event listeners
+            renderer.domElement.addEventListener('touchstart', onTouchStart);
+            renderer.domElement.addEventListener('touchmove', onTouchMove);
+            renderer.domElement.addEventListener('touchend', onTouchEnd);
         }
 
         function createVector(direction, color, index) {
@@ -344,6 +349,91 @@
         function onMouseUp() {
             selectedHandle = null;
             isDragging = false;
+        }
+
+        function onTouchStart(event) {
+            event.preventDefault();
+            
+            if (event.touches.length === 1) {
+                const touch = event.touches[0];
+                mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(vectorHandles);
+
+                if (intersects.length > 0) {
+                    selectedHandle = intersects[0].object;
+                    isDragging = true;
+                } else {
+                    // Start camera rotation
+                    window.touchRotating = true;
+                    window.previousTouchPosition = { x: touch.clientX, y: touch.clientY };
+                }
+            }
+        }
+
+        function onTouchMove(event) {
+            event.preventDefault();
+            
+            if (event.touches.length === 1) {
+                const touch = event.touches[0];
+                mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+
+                if (isDragging && selectedHandle) {
+                    raycaster.setFromCamera(mouse, camera);
+                    
+                    const cameraDir = new THREE.Vector3();
+                    camera.getWorldDirection(cameraDir);
+                    
+                    const plane = new THREE.Plane();
+                    plane.setFromNormalAndCoplanarPoint(cameraDir, selectedHandle.position);
+                    
+                    const intersectionPoint = new THREE.Vector3();
+                    raycaster.ray.intersectPlane(plane, intersectionPoint);
+                    
+                    if (intersectionPoint) {
+                        const vectorIndex = selectedHandle.userData.vectorIndex;
+                        const snappedPosition = snapVector(intersectionPoint, vectorIndex);
+                        
+                        vectors[vectorIndex].direction.copy(snappedPosition);
+                        updateVector(vectorIndex);
+                        updateGrid();
+                        updateMatrix();
+                    }
+                } else if (window.touchRotating) {
+                    const deltaX = touch.clientX - window.previousTouchPosition.x;
+                    const deltaY = touch.clientY - window.previousTouchPosition.y;
+
+                    const phi = deltaX * 0.01;
+                    const theta = deltaY * 0.01;
+
+                    const pos = camera.position;
+                    const radius = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
+                    
+                    let currentPhi = Math.atan2(pos.x, pos.z);
+                    let currentTheta = Math.acos(pos.y / radius);
+
+                    currentPhi += phi;
+                    currentTheta += theta;
+                    currentTheta = Math.max(0.1, Math.min(Math.PI - 0.1, currentTheta));
+
+                    camera.position.x = radius * Math.sin(currentTheta) * Math.sin(currentPhi);
+                    camera.position.y = radius * Math.cos(currentTheta);
+                    camera.position.z = radius * Math.sin(currentTheta) * Math.cos(currentPhi);
+                    camera.lookAt(0, 0, 0);
+
+                    window.previousTouchPosition = { x: touch.clientX, y: touch.clientY };
+                }
+            }
+        }
+
+        function onTouchEnd(event) {
+            event.preventDefault();
+            selectedHandle = null;
+            isDragging = false;
+            window.touchRotating = false;
         }
 
         function onWindowResize() {
