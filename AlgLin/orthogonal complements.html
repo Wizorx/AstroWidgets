@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear Algebra: Span and Orthogonal Complement Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        canvas {
+            display: block;
+            cursor: move;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let v1 = [2, 1, 0];
+        let v2 = [0, 2, 1];
+        let rotation = { x: 0.5, y: 0.5 };
+        let isDragging = false;
+        let dragVector = null;
+        let lastMouse = { x: 0, y: 0 };
+        const scale = 60;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            draw();
+        }
+
+        function crossProduct(a, b) {
+            return [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0]
+            ];
+        }
+
+        function normalize(v) {
+            const mag = Math.sqrt(v[0]**2 + v[1]**2 + v[2]**2);
+            if (mag < 0.001) return [0, 0, 0];
+            return [v[0]/mag, v[1]/mag, v[2]/mag];
+        }
+
+        function magnitude(v) {
+            return Math.sqrt(v[0]**2 + v[1]**2 + v[2]**2);
+        }
+
+        function areColinear(a, b) {
+            const cross = crossProduct(a, b);
+            const magCross = magnitude(cross);
+            const magA = magnitude(a);
+            const magB = magnitude(b);
+            return magCross < 0.1 && magA > 0.001 && magB > 0.001;
+        }
+
+        function isZero(v) {
+            return magnitude(v) < 0.001;
+        }
+
+        function project(x, y, z) {
+            const rotX = rotation.x;
+            const rotY = rotation.y;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            let x1 = x * Math.cos(rotY) - z * Math.sin(rotY);
+            let z1 = x * Math.sin(rotY) + z * Math.cos(rotY);
+            let y1 = y;
+
+            let y2 = y1 * Math.cos(rotX) - z1 * Math.sin(rotX);
+            let z2 = y1 * Math.sin(rotX) + z1 * Math.cos(rotX);
+            let x2 = x1;
+
+            const perspective = 15;
+            const depth = perspective + z2;
+            const perspectiveFactor = perspective / depth;
+            
+            return {
+                x: centerX + x2 * scale * perspectiveFactor,
+                y: centerY - y2 * scale * perspectiveFactor,
+                z: z2
+            };
+        }
+
+        function unproject(screenX, screenY, depth) {
+            const rotX = rotation.x;
+            const rotY = rotation.y;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            let x2 = (screenX - centerX) / scale;
+            let y2 = -(screenY - centerY) / scale;
+            let z2 = depth;
+
+            let y1 = y2 * Math.cos(-rotX) - z2 * Math.sin(-rotX);
+            let z1 = y2 * Math.sin(-rotX) + z2 * Math.cos(-rotX);
+            let x1 = x2;
+
+            let x = x1 * Math.cos(-rotY) - z1 * Math.sin(-rotY);
+            let z = x1 * Math.sin(-rotY) + z1 * Math.cos(-rotY);
+            let y = y1;
+
+            return [x, y, z];
+        }
+
+        function snapToColinear(v, target) {
+            const magTarget = magnitude(target);
+            if (magTarget < 0.001) return v;
+
+            const normalized = normalize(target);
+            const dot = v[0] * normalized[0] + v[1] * normalized[1] + v[2] * normalized[2];
+            const magV = magnitude(v);
+            if (magV < 0.001) return v;
+            
+            const angle = Math.acos(Math.max(-1, Math.min(1, dot / magV)));
+            
+            if (angle < 0.15 || angle > Math.PI - 0.15) {
+                const sign = dot > 0 ? 1 : -1;
+                return [normalized[0] * magV * sign, normalized[1] * magV * sign, normalized[2] * magV * sign];
+            }
+            return v;
+        }
+
+        function snapToOrigin(v) {
+            if (magnitude(v) < 0.3) {
+                return [0, 0, 0];
+            }
+            return v;
+        }
+
+        function clampToBox(v) {
+            const maxVal = 2.8;
+            return [
+                Math.max(-maxVal, Math.min(maxVal, v[0])),
+                Math.max(-maxVal, Math.min(maxVal, v[1])),
+                Math.max(-maxVal, Math.min(maxVal, v[2]))
+            ];
+        }
+
+        function draw() {
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.fillStyle = '#191919';
+            ctx.fillRect(0, 0, w, h);
+
+            const bothZero = isZero(v1) && isZero(v2);
+            const v1Zero = isZero(v1) && !isZero(v2);
+            const v2Zero = !isZero(v1) && isZero(v2);
+            const colinear = areColinear(v1, v2);
+            const normal = normalize(crossProduct(v1, v2));
+
+            let spanType, orthoType;
+            if (bothZero) {
+                spanType = "um ponto";
+                orthoType = "o espaço inteiro";
+            } else if (v1Zero || v2Zero || colinear) {
+                spanType = "uma reta";
+                orthoType = "um plano";
+            } else {
+                spanType = "um plano";
+                orthoType = "uma reta";
+            }
+
+            const cubeSize = 3;
+            const corners = [
+                [-cubeSize, -cubeSize, -cubeSize],
+                [cubeSize, -cubeSize, -cubeSize],
+                [cubeSize, cubeSize, -cubeSize],
+                [-cubeSize, cubeSize, -cubeSize],
+                [-cubeSize, -cubeSize, cubeSize],
+                [cubeSize, -cubeSize, cubeSize],
+                [cubeSize, cubeSize, cubeSize],
+                [-cubeSize, cubeSize, cubeSize]
+            ];
+
+            const faces = [
+                [0, 1, 2, 3],
+                [4, 5, 6, 7],
+                [0, 1, 5, 4],
+                [2, 3, 7, 6],
+                [0, 3, 7, 4],
+                [1, 2, 6, 5]
+            ];
+
+            const facesWithDepth = faces.map(face => {
+                const avgZ = face.reduce((sum, idx) => {
+                    const p = project(...corners[idx]);
+                    return sum + p.z;
+                }, 0) / face.length;
+                return { face, avgZ };
+            });
+
+            facesWithDepth.sort((a, b) => a.avgZ - b.avgZ);
+
+            // Draw span and orthogonal complement
+            if (bothZero) {
+                facesWithDepth.forEach(({ face }) => {
+                    ctx.beginPath();
+                    face.forEach((idx, i) => {
+                        const p = project(...corners[idx]);
+                        if (i === 0) ctx.moveTo(p.x, p.y);
+                        else ctx.lineTo(p.x, p.y);
+                    });
+                    ctx.closePath();
+                    ctx.fillStyle = 'rgba(236, 72, 153, 0.25)';
+                    ctx.fill();
+                });
+            } else if (v1Zero || v2Zero || colinear) {
+                const lineVec = v1Zero ? v2 : v1;
+                
+                const basis1 = Math.abs(lineVec[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+                const ortho1 = normalize(crossProduct(lineVec, basis1));
+                const ortho2 = normalize(crossProduct(lineVec, ortho1));
+
+                ctx.strokeStyle = 'rgba(236, 72, 153, 0.4)';
+                ctx.lineWidth = 1;
+                const maxCoord = 2.9;
+                for (let i = -5; i <= 5; i += 0.2) {
+                    ctx.beginPath();
+                    let lastInside = false;
+                    for (let j = -5; j <= 5; j += 0.05) {
+                        const x = ortho1[0] * i + ortho2[0] * j;
+                        const y = ortho1[1] * i + ortho2[1] * j;
+                        const z = ortho1[2] * i + ortho2[2] * j;
+                        const inside = Math.abs(x) <= maxCoord && Math.abs(y) <= maxCoord && Math.abs(z) <= maxCoord;
+                        
+                        if (inside) {
+                            const p = project(x, y, z);
+                            if (!lastInside) ctx.moveTo(p.x, p.y);
+                            else ctx.lineTo(p.x, p.y);
+                        }
+                        lastInside = inside;
+                    }
+                    ctx.stroke();
+                }
+
+                for (let j = -5; j <= 5; j += 0.2) {
+                    ctx.beginPath();
+                    let lastInside = false;
+                    for (let i = -5; i <= 5; i += 0.05) {
+                        const x = ortho1[0] * i + ortho2[0] * j;
+                        const y = ortho1[1] * i + ortho2[1] * j;
+                        const z = ortho1[2] * i + ortho2[2] * j;
+                        const inside = Math.abs(x) <= maxCoord && Math.abs(y) <= maxCoord && Math.abs(z) <= maxCoord;
+                        
+                        if (inside) {
+                            const p = project(x, y, z);
+                            if (!lastInside) ctx.moveTo(p.x, p.y);
+                            else ctx.lineTo(p.x, p.y);
+                        }
+                        lastInside = inside;
+                    }
+                    ctx.stroke();
+                }
+
+                const dir = normalize(lineVec);
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                let lastInside = false;
+                for (let t = -10; t <= 10; t += 0.1) {
+                    const x = dir[0] * t;
+                    const y = dir[1] * t;
+                    const z = dir[2] * t;
+                    const inside = Math.abs(x) <= 2.9 && Math.abs(y) <= 2.9 && Math.abs(z) <= 2.9;
+                    
+                    if (inside) {
+                        const p = project(x, y, z);
+                        if (!lastInside) ctx.moveTo(p.x, p.y);
+                        else ctx.lineTo(p.x, p.y);
+                    }
+                    lastInside = inside;
+                }
+                ctx.stroke();
+            } else {
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+                ctx.lineWidth = 1;
+                const maxCoord = 2.9;
+                for (let i = -3; i <= 3; i += 0.2) {
+                    ctx.beginPath();
+                    let lastInside = false;
+                    for (let j = -3; j <= 3; j += 0.05) {
+                        const x = v1[0] * i + v2[0] * j;
+                        const y = v1[1] * i + v2[1] * j;
+                        const z = v1[2] * i + v2[2] * j;
+                        const inside = Math.abs(x) <= maxCoord && Math.abs(y) <= maxCoord && Math.abs(z) <= maxCoord;
+                        
+                        if (inside) {
+                            const p = project(x, y, z);
+                            if (!lastInside) ctx.moveTo(p.x, p.y);
+                            else ctx.lineTo(p.x, p.y);
+                        }
+                        lastInside = inside;
+                    }
+                    ctx.stroke();
+                }
+
+                for (let j = -3; j <= 3; j += 0.2) {
+                    ctx.beginPath();
+                    let lastInside = false;
+                    for (let i = -3; i <= 3; i += 0.05) {
+                        const x = v1[0] * i + v2[0] * j;
+                        const y = v1[1] * i + v2[1] * j;
+                        const z = v1[2] * i + v2[2] * j;
+                        const inside = Math.abs(x) <= maxCoord && Math.abs(y) <= maxCoord && Math.abs(z) <= maxCoord;
+                        
+                        if (inside) {
+                            const p = project(x, y, z);
+                            if (!lastInside) ctx.moveTo(p.x, p.y);
+                            else ctx.lineTo(p.x, p.y);
+                        }
+                        lastInside = inside;
+                    }
+                    ctx.stroke();
+                }
+
+                const dir = normal;
+                ctx.strokeStyle = 'rgba(236, 72, 153, 0.8)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                let lastInside = false;
+                for (let t = -10; t <= 10; t += 0.1) {
+                    const x = dir[0] * t;
+                    const y = dir[1] * t;
+                    const z = dir[2] * t;
+                    const inside = Math.abs(x) <= 2.9 && Math.abs(y) <= 2.9 && Math.abs(z) <= 2.9;
+                    
+                    if (inside) {
+                        const p = project(x, y, z);
+                        if (!lastInside) ctx.moveTo(p.x, p.y);
+                        else ctx.lineTo(p.x, p.y);
+                    }
+                    lastInside = inside;
+                }
+                ctx.stroke();
+            }
+
+            // Draw cube faces
+            facesWithDepth.forEach(({ face }) => {
+                ctx.beginPath();
+                face.forEach((idx, i) => {
+                    const p = project(...corners[idx]);
+                    if (i === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                });
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(51, 65, 85, 0.08)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+
+            // Draw vectors
+            function drawVector(v, color, label, highlight) {
+                if (isZero(v)) return;
+                
+                const start = project(0, 0, 0);
+                const end = project(...v);
+                
+                ctx.strokeStyle = highlight ? '#ffffff' : color;
+                ctx.lineWidth = highlight ? 5 : 3;
+                ctx.beginPath();
+                ctx.moveTo(start.x, start.y);
+                ctx.lineTo(end.x, end.y);
+                ctx.stroke();
+
+                const angle = Math.atan2(end.y - start.y, end.x - start.x);
+                ctx.fillStyle = highlight ? '#ffffff' : color;
+                ctx.beginPath();
+                ctx.moveTo(end.x, end.y);
+                ctx.lineTo(end.x - 15 * Math.cos(angle - Math.PI/6), end.y - 15 * Math.sin(angle - Math.PI/6));
+                ctx.lineTo(end.x - 15 * Math.cos(angle + Math.PI/6), end.y - 15 * Math.sin(angle + Math.PI/6));
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(end.x, end.y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = highlight ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.3)';
+                ctx.fill();
+
+                ctx.fillStyle = highlight ? '#ffffff' : color;
+                ctx.font = 'bold 16px monospace';
+                ctx.fillText(label, end.x + 10, end.y - 10);
+            }
+
+            const origin = project(0, 0, 0);
+            ctx.beginPath();
+            ctx.arc(origin.x, origin.y, 8, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            drawVector(v1, '#f59e0b', 'v₁', dragVector === 'v1');
+            drawVector(v2, '#8b5cf6', 'v₂', dragVector === 'v2');
+
+            // Draw text
+            ctx.save();
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx.fillRect(10, 10, 520, 90);
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(10, 10, 520, 90);
+
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = '16px sans-serif';
+            ctx.fillText('O subespaço ', 20, 35);
+            ctx.fillStyle = '#60a5fa';
+            ctx.font = 'bold 16px monospace';
+            ctx.fillText('Span{v₁, v₂}', 140, 35);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = '16px sans-serif';
+            ctx.fillText(' é ', 260, 35);
+            ctx.fillStyle = '#60a5fa';
+            ctx.font = 'bold 16px sans-serif';
+            ctx.fillText(spanType, 290, 35);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = '16px sans-serif';
+            ctx.fillText('.', 290 + ctx.measureText(spanType).width, 35);
+
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = '16px sans-serif';
+            ctx.fillText('O complemento ortogonal é ', 20, 65);
+            ctx.fillStyle = '#ec4899';
+            ctx.font = 'bold 16px sans-serif';
+            ctx.fillText(orthoType, 250, 65);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = '16px sans-serif';
+            ctx.fillText('.', 250 + ctx.measureText(orthoType).width, 65);
+
+            ctx.restore();
+        }
+
+        // Event handlers
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const origin = project(0, 0, 0);
+            const distOrigin = Math.sqrt((mouseX - origin.x)**2 + (mouseY - origin.y)**2);
+
+            if (distOrigin < 15) {
+                if (isZero(v1)) {
+                    dragVector = 'v1';
+                    isDragging = true;
+                    return;
+                } else if (isZero(v2)) {
+                    dragVector = 'v2';
+                    isDragging = true;
+                    return;
+                }
+            }
+
+            const v1End = project(...v1);
+            const v2End = project(...v2);
+
+            const dist1 = isZero(v1) ? Infinity : Math.sqrt((mouseX - v1End.x)**2 + (mouseY - v1End.y)**2);
+            const dist2 = isZero(v2) ? Infinity : Math.sqrt((mouseX - v2End.x)**2 + (mouseY - v2End.y)**2);
+
+            if (dist1 < 20) {
+                dragVector = 'v1';
+                isDragging = true;
+            } else if (dist2 < 20) {
+                dragVector = 'v2';
+                isDragging = true;
+            } else {
+                dragVector = null;
+                isDragging = true;
+                lastMouse = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            if (dragVector) {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                const currentVec = dragVector === 'v1' ? v1 : v2;
+                const currentProj = isZero(currentVec) ? project(0, 0, 0) : project(...currentVec);
+                const depth = currentProj.z;
+
+                let newVec = unproject(mouseX, mouseY, depth);
+                
+                newVec = clampToBox(newVec);
+                newVec = snapToOrigin(newVec);
+                
+                if (!isZero(newVec)) {
+                    const otherVec = dragVector === 'v1' ? v2 : v1;
+                    newVec = snapToColinear(newVec, otherVec);
+                }
+
+                if (dragVector === 'v1') {
+                    v1 = newVec;
+                } else {
+                    v2 = newVec;
+                }
+                draw();
+            } else {
+                const dx = e.clientX - lastMouse.x;
+                const dy = e.clientY - lastMouse.y;
+                
+                let newRotX = rotation.x + dy * 0.01;
+                newRotX = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, newRotX));
+                
+                rotation = {
+                    x: newRotX,
+                    y: rotation.y + dx * 0.01
+                };
+                lastMouse = { x: e.clientX, y: e.clientY };
+                draw();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            dragVector = null;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+            dragVector = null;
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // Initial setup
+        resizeCanvas();
+    </script>
+</body>
+</html>
