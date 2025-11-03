@@ -391,7 +391,7 @@
             const deltaY = e.clientY - previousMousePosition.y;
 
             theta -= deltaX * 0.01;
-            phi = Math.max(0.001, Math.min(Math.PI - 0.1, phi + deltaY * 0.01));
+            phi = Math.max(0.001, Math.min(Math.PI - 0.001, phi + deltaY * 0.01));
 
             camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
             camera.position.y = radius * Math.cos(phi);
