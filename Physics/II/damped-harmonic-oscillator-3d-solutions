@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Damped Harmonic Oscillator 3D Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 18px;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 350px;
+            font-size: 13px;
+        }
+
+        .slider-group {
+            margin-bottom: 12px;
+        }
+
+        .slider-group label {
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        .slider-group input[type="range"] {
+            width: 100%;
+        }
+
+        .checkbox-group {
+            margin-bottom: 12px;
+        }
+
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        .instructions {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            max-width: 200px;
+        }
+
+        .instructions strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .instructions div {
+            margin-bottom: 3px;
+        }
+
+        .color-legend {
+            margin-top: 10px;
+        }
+
+        .color-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .green {
+            background-color: #00ff00;
+        }
+
+        .red {
+            background-color: #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        
+        <div class="hud">
+            <div id="equation">ẍ + 0.50ẋ + 2.00x = 0</div>
+        </div>
+
+        <div class="controls">
+            <div class="slider-group">
+                <label for="gamma">γ: <span id="gamma-value">0.50</span></label>
+                <input type="range" id="gamma" min="-10" max="10" step="0.1" value="0.5">
+            </div>
+
+            <div class="slider-group">
+                <label for="omega">ω²: <span id="omega-value">2.00</span></label>
+                <input type="range" id="omega" min="-10" max="10" step="0.1" value="2">
+            </div>
+
+            <div class="slider-group">
+                <label for="c1">c₁: <span id="c1-value">1.00</span></label>
+                <input type="range" id="c1" min="-10" max="10" step="0.1" value="1">
+            </div>
+
+            <div class="slider-group">
+                <label for="c2">c₂: <span id="c2-value">0.00</span></label>
+                <input type="range" id="c2" min="-10" max="10" step="0.1" value="0">
+            </div>
+
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="show-solution" checked>
+                    Show 3D Solution
+                </label>
+            </div>
+
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="show-real" checked>
+                    Show Real Part Projection
+                </label>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <strong>Controles:</strong>
+            <div>• Arraste para girar a câmera.</div>
+            <div>• Use a roda do mouse para zoom ou faça movimento de pinça para zoom (mobile).</div>
+            <div class="color-legend">
+                <div><span class="color-indicator green"></span> Solução Geral</div>
+                <div><span class="color-indicator red"></span> Parte Real</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Parameters
+        let omega = 2;
+        let gamma = 0.5;
+        let c1 = 1;
+        let c2 = 0;
+        let showSolution = true;
+        let showReal = true;
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x191919);
+
+        const container = document.getElementById('canvas-container');
+        const camera = new THREE.PerspectiveCamera(
+            60,
+            container.clientWidth / container.clientHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(-15, 10, 15);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 10, 10);
+        scene.add(directionalLight);
+
+        // Create grid helper
+        function createGrid(size, divisions, color) {
+            const grid = new THREE.GridHelper(size, divisions, color, color);
+            grid.material.opacity = 0.3;
+            grid.material.transparent = true;
+            return grid;
+        }
+
+        // Real-Imaginary plane (vertical on the Re-Im plane)
+        const riPlane = createGrid(20, 20, 0xffffff);
+        riPlane.rotation.x = Math.PI / 2;
+        riPlane.position.z = 0;
+        scene.add(riPlane);
+
+        // Real-Time plane (horizontal at y=0)
+        const rtPlane = createGrid(20, 20, 0xffffff);
+        rtPlane.position.y = 0;
+        scene.add(rtPlane);
+
+        // Create arrow helper
+        function createArrow(from, to, color) {
+            const direction = new THREE.Vector3().subVectors(to, from).normalize();
+            const length = from.distanceTo(to);
+            const arrow = new THREE.ArrowHelper(direction, from, length, color, 0.5, 0.3);
+            return arrow;
+        }
+
+        // Axes
+        const realArrow = createArrow(
+            new THREE.Vector3(-10, 0, 0),
+            new THREE.Vector3(10, 0, 0),
+            0xffffff
+        );
+        scene.add(realArrow);
+
+        const imagArrow = createArrow(
+            new THREE.Vector3(0, -10, 0),
+            new THREE.Vector3(0, 10, 0),
+            0xffffff
+        );
+        scene.add(imagArrow);
+
+        const timeArrow = createArrow(
+            new THREE.Vector3(0, 0, -10),
+            new THREE.Vector3(0, 0, 10),
+            0xffffff
+        );
+        scene.add(timeArrow);
+
+        // Create text sprites for labels
+        function createTextSprite(text) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 512;
+            canvas.height = 256;
+            context.font = 'Bold 96px Arial';
+            context.fillStyle = 'white';
+            context.textAlign = 'center';
+            context.fillText(text, 256, 128);
+            
+            const texture = new THREE.Texture(canvas);
+            texture.needsUpdate = true;
+            
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.scale.set(4, 2, 1);
+            return sprite;
+        }
+
+        const realLabel = createTextSprite('Re');
+        realLabel.position.set(11, 0, 0);
+        scene.add(realLabel);
+
+        const imagLabel = createTextSprite('Im');
+        imagLabel.position.set(0, 11, 0);
+        scene.add(imagLabel);
+
+        const timeLabel = createTextSprite('t');
+        timeLabel.position.set(0, 0, 11);
+        scene.add(timeLabel);
+
+        // Curve references
+        let solutionCurve = null;
+        let realCurve = null;
+
+        // Update curves
+        function updateCurves() {
+            // Remove old curves
+            if (solutionCurve) {
+                scene.remove(solutionCurve);
+                solutionCurve.geometry.dispose();
+                solutionCurve.material.dispose();
+                solutionCurve = null;
+            }
+            if (realCurve) {
+                scene.remove(realCurve);
+                realCurve.geometry.dispose();
+                realCurve.material.dispose();
+                realCurve = null;
+            }
+
+            // Calculate solution
+            const discriminant = gamma * gamma - 4 * omega * omega;
+            const points3D = [];
+            const pointsReal = [];
+            const tMax = 19;
+            const steps = 1000;
+
+            for (let i = 0; i <= steps; i++) {
+                const t = (i / steps) * tMax - tMax / 2;
+                let real, imag;
+
+                if (discriminant > 0) {
+                    // Overdamped
+                    const r1 = (-gamma + Math.sqrt(discriminant)) / 2;
+                    const r2 = (-gamma - Math.sqrt(discriminant)) / 2;
+                    real = c1 * Math.exp(r1 * t) + c2 * Math.exp(r2 * t);
+                    imag = 0;
+                } else if (discriminant === 0) {
+                    // Critically damped
+                    const r = -gamma / 2;
+                    real = (c1 + c2 * t) * Math.exp(r * t);
+                    imag = 0;
+                } else {
+                    // Underdamped
+                    const alpha = -gamma / 2;
+                    const beta = Math.sqrt(Math.abs(discriminant)) / 2;
+                    const expTerm = Math.exp(alpha * t);
+                    const actualBeta = omega < 0 ? -beta : beta;
+                    real = expTerm * (c1 * Math.cos(actualBeta * t) - c2 * Math.sin(actualBeta * t));
+                    imag = expTerm * (c1 * Math.sin(actualBeta * t) + c2 * Math.cos(actualBeta * t));
+                }
+
+                points3D.push(new THREE.Vector3(real, imag, t));
+                pointsReal.push(new THREE.Vector3(real, 0, t));
+            }
+
+            // Create 3D solution curve
+            if (showSolution) {
+                const geometry3D = new THREE.BufferGeometry().setFromPoints(points3D);
+                const material3D = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
+                solutionCurve = new THREE.Line(geometry3D, material3D);
+                scene.add(solutionCurve);
+            }
+
+            // Create real part projection curve
+            if (showReal) {
+                const geometryReal = new THREE.BufferGeometry().setFromPoints(pointsReal);
+                const materialReal = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 });
+                realCurve = new THREE.Line(geometryReal, materialReal);
+                scene.add(realCurve);
+            }
+
+            // Update equation display
+            document.getElementById('equation').textContent = 
+                `ẍ + ${gamma.toFixed(2)}ẋ + ${omega.toFixed(2)}x = 0`;
+        }
+
+        // Camera controls
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let theta = Math.atan2(camera.position.z, camera.position.x);
+        let phi = Math.acos(camera.position.y / Math.sqrt(
+            camera.position.x ** 2 + camera.position.y ** 2 + camera.position.z ** 2
+        ));
+        let radius = Math.sqrt(
+            camera.position.x ** 2 + camera.position.y ** 2 + camera.position.z ** 2
+        );
+
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const deltaX = e.clientX - previousMousePosition.x;
+            const deltaY = e.clientY - previousMousePosition.y;
+
+            theta -= deltaX * 0.01;
+            phi = Math.max(0.001, Math.min(Math.PI - 0.1, phi + deltaY * 0.01));
+
+            camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
+            camera.position.y = radius * Math.cos(phi);
+            camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
+            camera.lookAt(0, 0, 0);
+
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        renderer.domElement.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        renderer.domElement.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            radius = Math.max(5, Math.min(50, radius + e.deltaY * 0.01));
+            camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
+            camera.position.y = radius * Math.cos(phi);
+            camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
+            camera.lookAt(0, 0, 0);
+        });
+
+        // Touch controls
+        let lastTouchDistance = 0;
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+
+        renderer.domElement.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                lastTouchX = e.touches[0].clientX;
+                lastTouchY = e.touches[0].clientY;
+            } else if (e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
+            }
+        });
+
+        renderer.domElement.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length === 1) {
+                const deltaX = e.touches[0].clientX - lastTouchX;
+                const deltaY = e.touches[0].clientY - lastTouchY;
+
+                theta -= deltaX * 0.01;
+                phi = Math.max(0.1, Math.min(Math.PI - 0.1, phi + deltaY * 0.01));
+
+                camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
+                camera.position.y = radius * Math.cos(phi);
+                camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
+                camera.lookAt(0, 0, 0);
+
+                lastTouchX = e.touches[0].clientX;
+                lastTouchY = e.touches[0].clientY;
+            } else if (e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const delta = distance - lastTouchDistance;
+
+                radius = Math.max(5, Math.min(50, radius - delta * 0.05));
+                camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
+                camera.position.y = radius * Math.cos(phi);
+                camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
+                camera.lookAt(0, 0, 0);
+
+                lastTouchDistance = distance;
+            }
+        });
+
+        // UI controls
+        document.getElementById('omega').addEventListener('input', (e) => {
+            omega = parseFloat(e.target.value);
+            document.getElementById('omega-value').textContent = omega.toFixed(2);
+            updateCurves();
+        });
+
+        document.getElementById('gamma').addEventListener('input', (e) => {
+            gamma = parseFloat(e.target.value);
+            document.getElementById('gamma-value').textContent = gamma.toFixed(2);
+            updateCurves();
+        });
+
+        document.getElementById('c1').addEventListener('input', (e) => {
+            c1 = parseFloat(e.target.value);
+            document.getElementById('c1-value').textContent = c1.toFixed(2);
+            updateCurves();
+        });
+
+        document.getElementById('c2').addEventListener('input', (e) => {
+            c2 = parseFloat(e.target.value);
+            document.getElementById('c2-value').textContent = c2.toFixed(2);
+            updateCurves();
+        });
+
+        document.getElementById('show-solution').addEventListener('change', (e) => {
+            showSolution = e.target.checked;
+            updateCurves();
+        });
+
+        document.getElementById('show-real').addEventListener('change', (e) => {
+            showReal = e.target.checked;
+            updateCurves();
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        // Initial curve generation
+        updateCurves();
+        animate();
+    </script>
+</body>
+</html>
