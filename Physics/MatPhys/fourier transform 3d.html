@@ -26,7 +26,8 @@
             position: absolute;
             bottom: 20px;
             right: 20px;
-            width:500px;
+            width: 500px;
+            max-width: calc(100vw - 40px);
             background-color: rgba(0, 0, 0, 0.6);
             padding: 12px;
             border-radius: 8px;
@@ -35,15 +36,36 @@
             z-index: 10;
         }
         
-        #equation {
-            width: 100%;
+        @media (max-width: 768px) {
+            #hud {
+                width: calc(100vw - 40px);
+                bottom: 10px;
+                right: 10px;
+                left: 10px;
+                margin: 0 auto;
+            }
+        }
+        
+        #equation-container {
             margin-bottom: 8px;
+            text-align: center;
+        }
+        
+        #equation {
+            color: white;
+            font-size: 22px;
         }
         
         #freq-display {
             color: #4ade80;
             font-size: 12px;
             margin-top: 4px;
+        }
+
+        /* Hide the dynamic numeric label next to the frequency slider without
+           removing the DOM element so existing JS references remain valid. */
+        #freq-value {
+            display: none;
         }
         
         .control-group {
@@ -89,12 +111,12 @@
     <div id="canvas-container"></div>
     
     <div id="hud">
-        <div>
-            <img id="equation" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='40'%3E%3Ctext x='60' y='30' font-family='Arial' font-size='20' fill='white'%3EF(f) = ∫ f(t)e%3Ctspan baseline-shift='super' font-size='14'%3E-2πiωt%3C/tspan%3E dt%3C/text%3E%3C/svg%3E" alt="Fourier Transform Equation">
+        <div id="equation-container">
+            <div id="equation"></div>
         </div>
         
         <div class="control-group">
-            <label for="freq-slider">ω = <span id="freq-value">0.00</span></label>
+            <label for="freq-slider"><span id="freq-value">0.00</span></label>
             <input type="range" id="freq-slider" min="-10" max="10" step="0.00125" value="0">
         </div>
         
@@ -105,10 +127,12 @@
         </div>
         
         <div class="help-text">
-            Drag: rotate | Scroll: zoom
+            Drag: rotate | Scroll/Pinch: zoom
         </div>
     </div>
 
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         let scene, camera, renderer;
@@ -120,10 +144,16 @@
             previousMousePosition: { x: 0, y: 0 },
             theta: -Math.PI / .75,
             phi: Math.PI / 3,
-            zoom: 1
+            zoom: 1,
+            // Pinch zoom
+            isPinching: false,
+            previousPinchDistance: 0
         };
 
         function init() {
+            // Render LaTeX equation
+            renderEquation();
+            
             // Scene setup
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x191919);
@@ -299,6 +329,34 @@
             }
         }
 
+        function renderEquation() {
+            const equationElement = document.getElementById('equation');
+
+            function renderWith(freq) {
+                const val = Number(freq);
+                const formatted = Math.abs(val) < 1e-12 ? '0' : val.toFixed(3);
+                const latex = `F(${formatted}) = \\int_{-\\infty}^{+\\infty} f(t)\\,e^{-2\\pi i\\, ${formatted}\\, t}dt `;
+                katex.render(latex, equationElement, { throwOnError: false, displayMode: false });
+            }
+
+            if (!window.katex) {
+                // retry until KaTeX loads
+                setTimeout(renderEquation, 100);
+                return;
+            }
+
+            // initial render using current global frequency
+            renderWith(frequency);
+
+            // update equation when the slider changes (makes it dynamic)
+            const slider = document.getElementById('freq-slider');
+            if (slider) {
+                slider.addEventListener('input', (e) => {
+                    renderWith(parseFloat(e.target.value));
+                }, { passive: true });
+            }
+        }
+
         function updateVisualization() {
             // Remove old dynamic objects
             scene.children = scene.children.filter(child => !child.userData.isDynamic);
@@ -375,11 +433,16 @@
             }
         }
 
+        function getPinchDistance(touch1, touch2) {
+            const dx = touch2.clientX - touch1.clientX;
+            const dy = touch2.clientY - touch1.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
         function setupEventListeners() {
             const canvas = renderer.domElement;
             const freqSlider = document.getElementById('freq-slider');
             const freqValue = document.getElementById('freq-value');
-            const freqDisplay = document.getElementById('freq-display');
             const functionInput = document.getElementById('function-input');
 
             // Frequency slider
@@ -397,34 +460,53 @@
 
             // Mouse/Touch controls
             const getPointerPosition = (e) => {
-                if (e.touches) {
+                if (e.touches && e.touches.length === 1) {
                     return { x: e.touches[0].clientX, y: e.touches[0].clientY };
                 }
                 return { x: e.clientX, y: e.clientY };
             };
 
             const onPointerDown = (e) => {
-                controls.isDragging = true;
-                controls.previousMousePosition = getPointerPosition(e);
+                if (e.touches && e.touches.length === 2) {
+                    // Start pinch zoom
+                    controls.isPinching = true;
+                    controls.previousPinchDistance = getPinchDistance(e.touches[0], e.touches[1]);
+                } else {
+                    // Start dragging
+                    controls.isDragging = true;
+                    controls.previousMousePosition = getPointerPosition(e);
+                }
             };
 
             const onPointerMove = (e) => {
-                if (!controls.isDragging) return;
-                
-                const pos = getPointerPosition(e);
-                const deltaX = pos.x - controls.previousMousePosition.x;
-                const deltaY = pos.y - controls.previousMousePosition.y;
+                if (controls.isPinching && e.touches && e.touches.length === 2) {
+                    // Handle pinch zoom
+                    const currentDistance = getPinchDistance(e.touches[0], e.touches[1]);
+                    const delta = currentDistance - controls.previousPinchDistance;
+                    
+                    controls.zoom = Math.max(0.5, Math.min(3, 
+                        controls.zoom + delta * 0.005));
+                    updateCameraZoom();
+                    
+                    controls.previousPinchDistance = currentDistance;
+                } else if (controls.isDragging) {
+                    // Handle rotation
+                    const pos = getPointerPosition(e);
+                    const deltaX = pos.x - controls.previousMousePosition.x;
+                    const deltaY = pos.y - controls.previousMousePosition.y;
 
-                controls.theta += deltaX * 0.005;
-                controls.phi = Math.max(0.001, Math.min(Math.PI - 0.001, 
-                    controls.phi + deltaY * 0.005));
+                    controls.theta += deltaX * 0.005;
+                    controls.phi = Math.max(0.001, Math.min(Math.PI - 0.001, 
+                        controls.phi + deltaY * 0.005));
 
-                controls.previousMousePosition = pos;
-                updateCameraPosition();
+                    controls.previousMousePosition = pos;
+                    updateCameraPosition();
+                }
             };
 
             const onPointerUp = () => {
                 controls.isDragging = false;
+                controls.isPinching = false;
             };
 
             const onWheel = (e) => {
