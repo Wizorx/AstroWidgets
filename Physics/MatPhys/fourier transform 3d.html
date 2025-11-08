@@ -495,7 +495,7 @@
                     const deltaX = pos.x - controls.previousMousePosition.x;
                     const deltaY = pos.y - controls.previousMousePosition.y;
 
-                    controls.theta += deltaX * 0.005;
+                    controls.theta -= deltaX * 0.005;
                     controls.phi = Math.max(0.001, Math.min(Math.PI - 0.001, 
                         controls.phi + deltaY * 0.005));
 
