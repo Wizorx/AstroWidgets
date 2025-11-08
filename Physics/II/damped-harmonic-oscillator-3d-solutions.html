@@ -119,6 +119,9 @@
             background-color: #ff0000;
         }
     </style>
+    <!-- KaTeX for high-quality math rendering of equation and labels -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 </head>
 <body>
     <div id="container">
@@ -130,23 +133,23 @@
 
         <div class="controls">
             <div class="slider-group">
-                <label for="gamma">γ: <span id="gamma-value">0.50</span></label>
-                <input type="range" id="gamma" min="-10" max="10" step="0.1" value="0.5">
+                <label for="gamma"><span class="math" id="gamma-label">γ:</span> <span id="gamma-value">0.50</span></label>
+                <input type="range" id="gamma" min="-10" max="10" step="0.05" value="0.5">
             </div>
 
             <div class="slider-group">
-                <label for="omega">ω²: <span id="omega-value">2.00</span></label>
-                <input type="range" id="omega" min="-10" max="10" step="0.1" value="2">
+                <label for="omega"><span class="math" id="omega-label">ω²:</span> <span id="omega-value">2.00</span></label>
+                <input type="range" id="omega" min="-10" max="10" step="0.05" value="2">
             </div>
 
             <div class="slider-group">
-                <label for="c1">c₁: <span id="c1-value">1.00</span></label>
-                <input type="range" id="c1" min="-10" max="10" step="0.1" value="1">
+                <label for="c1"><span class="math" id="c1-label">c₁:</span> <span id="c1-value">1.00</span></label>
+                <input type="range" id="c1" min="-10" max="10" step="0.05" value="1">
             </div>
 
             <div class="slider-group">
-                <label for="c2">c₂: <span id="c2-value">0.00</span></label>
-                <input type="range" id="c2" min="-10" max="10" step="0.1" value="0">
+                <label for="c2"><span class="math" id="c2-label">c₂:</span> <span id="c2-value">0.00</span></label>
+                <input type="range" id="c2" min="-10" max="10" step="0.05" value="0">
             </div>
 
             <div class="checkbox-group">
@@ -190,14 +193,35 @@
         scene.background = new THREE.Color(0x191919);
 
         const container = document.getElementById('canvas-container');
-        const camera = new THREE.PerspectiveCamera(
-            60,
-            container.clientWidth / container.clientHeight,
+        const aspect = container.clientWidth / container.clientHeight;
+        const frustumSize = 15;
+        const camera = new THREE.OrthographicCamera(
+            frustumSize * aspect / -2,
+            frustumSize * aspect / 2,
+            frustumSize / 2,
+            frustumSize / -2,
             0.1,
             1000
         );
-        camera.position.set(-15, 10, 15);
+        // Controls and initial spherical camera coordinates (match Fourier file)
+        const controls = {
+            isDragging: false,
+            previousMousePosition: { x: 0, y: 0 },
+            theta: -Math.PI / .75,
+            phi: Math.PI / 3,
+            zoom: .5,
+            // pinch
+            isPinching: false,
+            previousPinchDistance: 0
+        };
+        let radius = 30;
+        // set initial camera position from controls
+        camera.position.x = radius * Math.sin(controls.phi) * Math.cos(controls.theta);
+        camera.position.y = radius * Math.cos(controls.phi);
+        camera.position.z = radius * Math.sin(controls.phi) * Math.sin(controls.theta);
         camera.lookAt(0, 0, 0);
+    // apply initial orthographic zoom
+    updateCameraZoom();
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(container.clientWidth, container.clientHeight);
@@ -219,16 +243,47 @@
             return grid;
         }
 
-        // Real-Imaginary plane (vertical on the Re-Im plane)
-        const riPlane = createGrid(20, 20, 0xffffff);
-        riPlane.rotation.x = Math.PI / 2;
-        riPlane.position.z = 0;
-        scene.add(riPlane);
+        // Real-Imaginary plane (vertical on the Re-Im plane) - match Fourier colors/opacities
+        {
+            const size = 20;
+            const divisions = 20;
+            const gridHelper = new THREE.GridHelper(size, divisions, 0x444444, 0x444444);
+            gridHelper.rotation.z = Math.PI / 2;
+            gridHelper.position.set(0, 0, 0);
+            scene.add(gridHelper);
+
+            const planeGeom = new THREE.PlaneGeometry(20, 20);
+            const planeMat = new THREE.MeshBasicMaterial({
+                color: 0x1a3a4a,
+                transparent: true,
+                opacity: 0.5,
+                side: THREE.DoubleSide
+            });
+            const plane = new THREE.Mesh(planeGeom, planeMat);
+            plane.rotation.y = Math.PI / 2;
+            scene.add(plane);
+        }
 
         // Real-Time plane (horizontal at y=0)
-        const rtPlane = createGrid(20, 20, 0xffffff);
-        rtPlane.position.y = 0;
-        scene.add(rtPlane);
+        {
+            const size = 20;
+            const divisions = 20;
+            const gridHelper = new THREE.GridHelper(size, divisions, 0x444444, 0x444444);
+            gridHelper.rotation.y = Math.PI / 2;
+            gridHelper.position.set(0, 0, 0);
+            scene.add(gridHelper);
+
+            const planeGeom = new THREE.PlaneGeometry(20, 20);
+            const planeMat = new THREE.MeshBasicMaterial({
+                color: 0x2a2a1a,
+                transparent: true,
+                opacity: 0.5,
+                side: THREE.DoubleSide
+            });
+            const plane = new THREE.Mesh(planeGeom, planeMat);
+            plane.rotation.x = Math.PI / 2;
+            scene.add(plane);
+        }
 
         // Create arrow helper
         function createArrow(from, to, color) {
@@ -364,58 +419,104 @@
                 scene.add(realCurve);
             }
 
-            // Update equation display
-            document.getElementById('equation').textContent = 
-                `ẍ + ${gamma.toFixed(2)}ẋ + ${omega.toFixed(2)}x = 0`;
+            // Update equation display (render with KaTeX when available)
+            renderMath();
         }
 
-        // Camera controls
-        let isDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
-        let theta = Math.atan2(camera.position.z, camera.position.x);
-        let phi = Math.acos(camera.position.y / Math.sqrt(
-            camera.position.x ** 2 + camera.position.y ** 2 + camera.position.z ** 2
-        ));
-        let radius = Math.sqrt(
-            camera.position.x ** 2 + camera.position.y ** 2 + camera.position.z ** 2
-        );
+        // Render the equation and slider symbol labels using KaTeX when available.
+        // Numeric values remain in their own spans so the JS can update them directly.
+        function renderMath() {
+            const eqEl = document.getElementById('equation');
+            const gammaLabel = document.getElementById('gamma-label');
+            const omegaLabel = document.getElementById('omega-label');
+            const c1Label = document.getElementById('c1-label');
+            const c2Label = document.getElementById('c2-label');
+
+            // Helpers to format signed coefficients for LaTeX and plain text
+            function formatSignedLatex(val) {
+                const absStr = Math.abs(val).toFixed(2);
+                const sign = val >= 0 ? '+' : '-';
+                // use a small LaTeX space after the sign for readability
+                return `${sign}\\;${absStr}`;
+            }
+
+            function formatSignedText(val) {
+                const absStr = Math.abs(val).toFixed(2);
+                const sign = val >= 0 ? '+' : '-';
+                return `${sign} ${absStr}`;
+            }
+
+            if (window.katex && typeof katex.render === 'function') {
+                try {
+                    // Build LaTeX equation with conditional signs
+                    const latexEq = `\\ddot{x} ${formatSignedLatex(gamma)}\\,\\dot{x} ${formatSignedLatex(omega)} x = 0`;
+                    katex.render(latexEq, eqEl, { throwOnError: false, displayMode: false });
+
+                    // Render symbol labels (numbers are separate spans)
+                    if (gammaLabel) katex.render('\\gamma:', gammaLabel, { throwOnError: false, displayMode: false });
+                    if (omegaLabel) katex.render('\\omega_0^2:', omegaLabel, { throwOnError: false, displayMode: false });
+                    if (c1Label) katex.render('c_1:', c1Label, { throwOnError: false, displayMode: false });
+                    if (c2Label) katex.render('c_2:', c2Label, { throwOnError: false, displayMode: false });
+                } catch (e) {
+                    // On any KaTeX error, fallback to plain text with conditional signs
+                    const textEq = `ẍ ${formatSignedText(gamma)}ẋ ${formatSignedText(omega)}x = 0`;
+                    eqEl.textContent = textEq;
+                    if (gammaLabel) gammaLabel.textContent = 'γ:';
+                    if (omegaLabel) omegaLabel.textContent = 'ω²:';
+                    if (c1Label) c1Label.textContent = 'c₁:';
+                    if (c2Label) c2Label.textContent = 'c₂:';
+                }
+            } else {
+                // KaTeX not available yet: set plain text with conditional signs.
+                const textEq = `ẍ ${formatSignedText(gamma)}ẋ ${formatSignedText(omega)}x = 0`;
+                eqEl.textContent = textEq;
+                if (gammaLabel) gammaLabel.textContent = 'γ:';
+                if (omegaLabel) omegaLabel.textContent = 'ω²:';
+                if (c1Label) c1Label.textContent = 'c₁:';
+                if (c2Label) c2Label.textContent = 'c₂:';
+            }
+        }
+
+        // Camera controls (match Fourier file behaviour)
+        function updateCameraZoom() {
+            camera.zoom = controls.zoom;
+            camera.updateProjectionMatrix();
+        }
 
         renderer.domElement.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            previousMousePosition = { x: e.clientX, y: e.clientY };
+            controls.isDragging = true;
+            controls.previousMousePosition = { x: e.clientX, y: e.clientY };
         });
 
         renderer.domElement.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
+            if (!controls.isDragging) return;
 
-            const deltaX = e.clientX - previousMousePosition.x;
-            const deltaY = e.clientY - previousMousePosition.y;
+            const deltaX = e.clientX - controls.previousMousePosition.x;
+            const deltaY = e.clientY - controls.previousMousePosition.y;
 
-            theta -= deltaX * 0.01;
-            phi = Math.max(0.001, Math.min(Math.PI - 0.001, phi + deltaY * 0.01));
+            controls.theta -= deltaX * 0.01;
+            controls.phi = Math.max(0.001, Math.min(Math.PI - 0.001, controls.phi + deltaY * 0.01));
 
-            camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
-            camera.position.y = radius * Math.cos(phi);
-            camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
+            camera.position.x = radius * Math.sin(controls.phi) * Math.cos(controls.theta);
+            camera.position.y = radius * Math.cos(controls.phi);
+            camera.position.z = radius * Math.sin(controls.phi) * Math.sin(controls.theta);
             camera.lookAt(0, 0, 0);
 
-            previousMousePosition = { x: e.clientX, y: e.clientY };
+            controls.previousMousePosition = { x: e.clientX, y: e.clientY };
         });
 
         renderer.domElement.addEventListener('mouseup', () => {
-            isDragging = false;
+            controls.isDragging = false;
         });
 
         renderer.domElement.addEventListener('wheel', (e) => {
             e.preventDefault();
-            radius = Math.max(5, Math.min(50, radius + e.deltaY * 0.01));
-            camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
-            camera.position.y = radius * Math.cos(phi);
-            camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
-            camera.lookAt(0, 0, 0);
+            // adjust orthographic zoom like the Fourier demo
+            controls.zoom = Math.max(0.5, Math.min(3, controls.zoom - e.deltaY * 0.001));
+            updateCameraZoom();
         });
 
-        // Touch controls
+        // Touch controls (pinch + rotate)
         let lastTouchDistance = 0;
         let lastTouchX = 0;
         let lastTouchY = 0;
@@ -437,12 +538,12 @@
                 const deltaX = e.touches[0].clientX - lastTouchX;
                 const deltaY = e.touches[0].clientY - lastTouchY;
 
-                theta -= deltaX * 0.01;
-                phi = Math.max(0.001, Math.min(Math.PI - 0.001, phi + deltaY * 0.01));
+                controls.theta += deltaX * 0.01;
+                controls.phi = Math.max(0.001, Math.min(Math.PI - 0.001, controls.phi + deltaY * 0.01));
 
-                camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
-                camera.position.y = radius * Math.cos(phi);
-                camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
+                camera.position.x = radius * Math.sin(controls.phi) * Math.cos(controls.theta);
+                camera.position.y = radius * Math.cos(controls.phi);
+                camera.position.z = radius * Math.sin(controls.phi) * Math.sin(controls.theta);
                 camera.lookAt(0, 0, 0);
 
                 lastTouchX = e.touches[0].clientX;
@@ -453,11 +554,9 @@
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 const delta = distance - lastTouchDistance;
 
-                radius = Math.max(5, Math.min(50, radius - delta * 0.05));
-                camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
-                camera.position.y = radius * Math.cos(phi);
-                camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
-                camera.lookAt(0, 0, 0);
+                // pinch to zoom like Fourier demo
+                controls.zoom = Math.max(0.5, Math.min(3, controls.zoom + delta * 0.005));
+                updateCameraZoom();
 
                 lastTouchDistance = distance;
             }
@@ -498,12 +597,17 @@
             updateCurves();
         });
 
-        // Handle window resize
+        // Handle window resize (update orthographic frustum to keep aspect)
         window.addEventListener('resize', () => {
-            camera.aspect = container.clientWidth / container.clientHeight;
+            const aspect = container.clientWidth / container.clientHeight;
+            const frustumSize = 15;
+            camera.left = frustumSize * aspect / -2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = frustumSize / -2;
             camera.updateProjectionMatrix();
             renderer.setSize(container.clientWidth, container.clientHeight);
-            renderer.setPixelRatio(window.devicePixelRatio); // Add this line
+            renderer.setPixelRatio(window.devicePixelRatio);
         });
 
         // Animation loop
@@ -515,6 +619,9 @@
         // Initial curve generation
         updateCurves();
         animate();
+
+    // If KaTeX loads after this script (deferred), re-render math once on window load
+    window.addEventListener('load', renderMath);
     </script>
 </body>
 </html>
