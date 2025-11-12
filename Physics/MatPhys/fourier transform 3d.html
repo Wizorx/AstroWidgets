@@ -20,6 +20,13 @@
         #canvas-container {
             width: 100vw;
             height: 100vh;
+            position: relative;
+        }
+        
+        @media (max-width: 768px) {
+            #canvas-container {
+                transform: translateY(-15%);
+            }
         }
         
         #hud {
@@ -548,4 +555,5 @@
     </script>
 </body>
 </html>
+
 
