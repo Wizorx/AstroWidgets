@@ -15,12 +15,14 @@
             font-family: Arial, sans-serif;
             overflow: hidden;
             background-color: #191919;
-            /* Removed fixed position and 100% height */
+            position: fixed;
+            width: 100%;
+            height: 100dvh;
         }
         
         #canvas-container {
             width: 100vw;
-            height: 100svh; /* Changed from 100vh to 100svh */
+            height: 100%;
             position: relative;
             display: flex;
             touch-action: none;
@@ -400,8 +402,6 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // --- ALL YOUR JAVASCRIPT REMAINS THE SAME ---
-        
         let sceneFreq, sceneTime, cameraFreq, cameraTime, rendererFreq, rendererTime;
         let timeValue = 0;
         let functionText = 'Math.abs(Math.abs(omega) - 1) < 0.025 ? 10 : 0';
@@ -435,7 +435,7 @@
             const errorMsg = document.getElementById('error-message');
             const errorMsgMobile = document.getElementById('error-message-mobile');
             try {
-                compiledFunction = new Function('omega', 'Math', return ${functionText});
+                compiledFunction = new Function('omega', 'Math', `return ${functionText}`);
                 // Test the function to catch runtime errors
                 compiledFunction(1, Math); 
                 
@@ -507,7 +507,7 @@
         }
 
         function setupViewport(domain) {
-            const container = document.getElementById(${domain}-viewport);
+            const container = document.getElementById(`${domain}-viewport`);
             const aspect = container.clientWidth / container.clientHeight;
             const frustumSize = 15;
             
@@ -698,7 +698,7 @@
             function renderWith(t) {
                 const val = Number(t);
                 const formatted = Math.abs(val) < 1e-12 ? '0' : val.toFixed(3);
-                const latex = `f(${formatted}) = \\int_{-\\infty}^{+\\infty} \\hat{f}(\\omega)\\,e^{2\\pi i\\, \\omega\\, ${formatted}}d\\omega `;
+                const latex = `\\textcolor{#00FF00}{f(${formatted})} = \\int_{-\\infty}^{+\\infty} \\hat{f}(\\omega)\\,e^{2\\pi i \\omega\\, ${formatted}}\\,d\\omega`;
                 
                 try {
                     if (equationElement && window.katex) {
@@ -1106,7 +1106,7 @@
 
 
         function resizeViewport(domain) {
-            const container = document.getElementById(${domain}-viewport);
+            const container = document.getElementById(`${domain}-viewport`);
             if (!container) return; // Exit if container not found
             
             const camera = domain === 'freq' ? cameraFreq : cameraTime;
