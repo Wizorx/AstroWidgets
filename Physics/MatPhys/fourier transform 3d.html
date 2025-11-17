@@ -467,7 +467,7 @@
             const errorMsg = document.getElementById('error-message');
             const errorMsgMobile = document.getElementById('error-message-mobile');
             try {
-                compiledFunction = new Function('t', 'Math', return ${functionText});
+                compiledFunction = new Function('t', 'Math', `return ${functionText}`);
                 // Test the function
                 compiledFunction(1, Math);
                 
@@ -525,7 +525,7 @@
         }
 
         function setupViewport(domain) {
-            const container = document.getElementById(${domain}-viewport);
+            const container = document.getElementById(`${domain}-viewport`);
             const aspect = container.clientWidth / container.clientHeight;
             const frustumSize = 15;
             
@@ -1160,7 +1160,7 @@
         }
 
         function resizeViewport(domain) {
-            const container = document.getElementById(${domain}-viewport);
+            const container = document.getElementById(`${domain}-viewport`);
             if (!container) return;
             
             const camera = domain === 'time' ? cameraTime : cameraFreq;
