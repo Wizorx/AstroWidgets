@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive 3D Fourier Transform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Interactive 3D Fourier Transform - Split View</title>
     <style>
         * {
             margin: 0;
@@ -15,62 +15,310 @@
             font-family: Arial, sans-serif;
             overflow: hidden;
             background-color: #191919;
+            position: fixed; 
+            width: 100%;
+            height: 100%;
         }
         
         #canvas-container {
             width: 100vw;
-            height: 100vh;
+            height: 100%; 
             position: relative;
+            display: flex;
+            touch-action: none; 
         }
         
+        .viewport {
+            position: relative;
+            flex: 1;
+            touch-action: none;
+            overflow: hidden; 
+        }
+
         @media (max-width: 768px) {
             #canvas-container {
-                transform: translateY(-15%);
+                flex-direction: column;
+            }
+            #canvas-container > .viewport {
+                min-height: 0; /* Prevents flex overflow */
             }
         }
         
-        #hud {
+        @media (min-width: 769px) {
+            #canvas-container {
+                flex-direction: row;
+            }
+            #canvas-container > .viewport {
+                height: 100%; 
+            }
+        }
+        
+        .viewport canvas {
+            touch-action: none;
+            display: block; 
+        }
+        
+        .viewport-label {
             position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 500px;
-            max-width: calc(100vw - 40px);
-            background-color: rgba(0, 0, 0, 0.6);
-            padding: 12px;
-            border-radius: 8px;
             color: white;
-            font-size: 14px;
-            z-index: 10;
+            font-size: 14px; 
+            font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 6px 12px;
+            border-radius: 4px;
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        /* Desktop Labels */
+        @media (min-width: 769px) {
+            .viewport-label {
+                top: 10px;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+        }
+        
+        /* Mobile Labels */
+        @media (max-width: 768px) {
+            /* Frequency Domain label at the top of its viewport */
+            #freq-viewport .viewport-label {
+                top: 8px;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+            /* Time Domain label at the bottom of its viewport */
+            #time-viewport .viewport-label {
+                bottom: 8px; 
+                left: 50%;
+                transform: translateX(-50%);
+            }
+        }
+        
+        .divider {
+            background-color: #444;
+            z-index: 1;
+        }
+        
+        @media (min-width: 769px) {
+            .divider {
+                width: 2px;
+                height: 100%;
+            }
         }
         
         @media (max-width: 768px) {
+            .divider {
+                width: 100%;
+                height: 2px;
+            }
+        }
+        
+        /* Desktop HUD */
+        @media (min-width: 769px) {
             #hud {
-                width: calc(100vw - 40px);
+                position: absolute;
+                bottom: 20px;
+                right: 20px;
+                width: 500px;
+                max-width: calc(100vw - 40px);
+                background-color: rgba(0, 0, 0, 0.8);
+                padding: 12px;
+                border-radius: 8px;
+                color: white;
+                font-size: 14px;
+                z-index: 10;
+                transition: opacity 0.3s, transform 0.3s;
+            }
+            
+            #hud.hidden {
+                opacity: 0;
+                transform: translateY(20px);
+                pointer-events: none;
+            }
+        }
+        
+        /* Mobile HUD - Reorganized */
+        @media (max-width: 768px) {
+            #hud {
+                display: none;
+            }
+        }
+        
+        /* Mobile equation at top */
+        #mobile-equation-container {
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            #mobile-equation-container {
+                display: block;
+                position: absolute;
+                top: 5px;
+                left: 50%;
+                transform: translateX(-50%);
+                background-color: rgba(0, 0, 0, 0.85);
+                padding: 4px 8px;
+                border-radius: 4px;
+                color: white;
+                z-index: 20;
+                pointer-events: none;
+                max-width: calc(100vw - 80px);
+                text-align: center;
+                overflow: hidden; 
+            }
+            
+            #mobile-equation {
+                font-size: 11px;
+                white-space: nowrap; 
+            }
+        }
+        
+        /* Mobile vertical slider */
+        #mobile-slider-container {
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            #mobile-slider-container {
+                display: block;
+                position: absolute;
+                right: 5px;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 50px;
+                height: 60vh;
+                z-index: 15;
+                pointer-events: auto;
+            }
+            
+            #freq-slider-mobile {
+                position: absolute;
+                width: 60vh;
+                height: 50px;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-90deg);
+                transform-origin: center;
+                cursor: pointer;
+                pointer-events: auto;
+            }
+        }
+        
+        /* Mobile bottom controls */
+        #mobile-bottom-controls {
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            #mobile-bottom-controls {
+                display: flex;
+                position: absolute;
                 bottom: 10px;
-                right: 10px;
                 left: 10px;
-                margin: 0 auto;
+                right: 65px;
+                gap: 8px;
+                z-index: 15;
+                align-items: flex-end;
+            }
+            
+            #hud-toggle-mobile {
+                background-color: rgba(0, 0, 0, 0.8);
+                color: white;
+                border: none;
+                padding: 10px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            
+            #mobile-function-panel {
+                flex: 1;
+                background-color: rgba(0, 0, 0, 0.8);
+                padding: 8px;
+                border-radius: 4px;
+                transition: opacity 0.3s, transform 0.3s;
+            }
+            
+            #mobile-function-panel.hidden {
+                opacity: 0;
+                transform: translateY(10px);
+                pointer-events: none;
+            }
+            
+            #mobile-function-panel label {
+                display: block;
+                font-size: 11px;
+                margin-bottom: 4px;
+                color: white;
+            }
+            
+            #function-input-mobile {
+                width: 100%;
+                padding: 6px;
+                background-color: #1f2937;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                font-family: monospace;
+            }
+            
+            #error-message-mobile {
+                color: #f87171;
+                font-size: 11px;
+                margin-top: 4px;
+                display: none;
+            }
+        }
+        
+        /* Desktop toggle button and controls */
+        @media (min-width: 769px) {
+            #mobile-equation-container,
+            #mobile-slider-container,
+            #mobile-bottom-controls {
+                display: none;
+            }
+            
+            #hud-toggle {
+                position: absolute;
+                bottom: 20px;
+                left: 20px;
+                background-color: rgba(0, 0, 0, 0.6);
+                color: white;
+                border: none;
+                padding: 10px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                z-index: 10;
+                font-size: 14px;
+            }
+            
+            #hud-toggle:hover {
+                background-color: rgba(0, 0, 0, 0.8);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            #hud-toggle {
+                display: none;
             }
         }
         
         #equation-container {
             margin-bottom: 8px;
             text-align: center;
+            overflow: hidden; 
         }
         
         #equation {
             color: white;
             font-size: 22px;
+            white-space: nowrap; 
         }
         
-        #freq-display {
-            color: #4ade80;
-            font-size: 12px;
-            margin-top: 4px;
-        }
-
-        /* Hide the dynamic numeric label next to the frequency slider without
-           removing the DOM element so existing JS references remain valid. */
         #freq-value {
             display: none;
         }
@@ -83,6 +331,13 @@
             display: block;
             font-size: 12px;
             margin-bottom: 4px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
         }
         
         input[type="range"] {
@@ -100,6 +355,10 @@
             font-size: 12px;
             font-family: monospace;
         }
+
+        input[type="checkbox"] {
+            cursor: pointer;
+        }
         
         .error {
             color: #f87171;
@@ -115,7 +374,34 @@
     </style>
 </head>
 <body>
-    <div id="canvas-container"></div>
+    <div id="canvas-container">
+        <div class="viewport" id="time-viewport">
+            <div class="viewport-label">Time Domain</div>
+        </div>
+        <div class="divider"></div>
+        <div class="viewport" id="freq-viewport">
+            <div class="viewport-label">Frequency Domain</div>
+        </div>
+    </div>
+    
+    <div id="mobile-equation-container">
+        <div id="mobile-equation"></div>
+    </div>
+    
+    <div id="mobile-slider-container">
+        <input type="range" id="freq-slider-mobile" min="-5" max="5" step="0.00125" value="0">
+    </div>
+    
+    <div id="mobile-bottom-controls">
+        <button id="hud-toggle-mobile">Toggle</button>
+        <div id="mobile-function-panel">
+            <label for="function-input-mobile">Function f(t):</label>
+            <input type="text" id="function-input-mobile" value="Math.sin(2 * Math.PI * t)" placeholder="Math.sin(2 * Math.PI * t)">
+            <div id="error-message-mobile" class="error"></div>
+        </div>
+    </div>
+    
+    <button id="hud-toggle">Toggle HUD</button>
     
     <div id="hud">
         <div id="equation-container">
@@ -124,13 +410,20 @@
         
         <div class="control-group">
             <label for="freq-slider"><span id="freq-value">0.00</span></label>
-            <input type="range" id="freq-slider" min="-10" max="10" step="0.00125" value="0">
+            <input type="range" id="freq-slider" min="-5" max="5" step="0.00125" value="0">
         </div>
         
         <div class="control-group">
             <label for="function-input">Function f(t):</label>
             <input type="text" id="function-input" value="Math.sin(2 * Math.PI * t)" placeholder="Math.sin(2 * Math.PI * t)">
             <div id="error-message" class="error" style="display: none;"></div>
+        </div>
+
+        <div class="control-group">
+            <label class="checkbox-label">
+                <input type="checkbox" id="trace-toggle">
+                Show Frequency Trace (Time Domain)
+            </label>
         </div>
         
         <div class="help-text">
@@ -142,34 +435,101 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        let scene, camera, renderer;
+        let sceneTime, sceneFreq, cameraTime, cameraFreq, rendererTime, rendererFreq;
         let frequency = 0;
         let functionText = 'Math.sin(2 * Math.PI * t)';
+        let showTrace = false;
+        let traceData = null;
+        let compiledFunction = null; 
         
-        const controls = {
+        const controlsTime = {
             isDragging: false,
             previousMousePosition: { x: 0, y: 0 },
-            theta: -Math.PI / .75,
+            theta: -Math.PI / 0.75,
             phi: Math.PI / 3,
             zoom: 1,
-            // Pinch zoom
+            isPinching: false,
+            previousPinchDistance: 0
+        };
+        
+        const controlsFreq = {
+            isDragging: false,
+            previousMousePosition: { x: 0, y: 0 },
+            theta: -Math.PI / 0.75,
+            phi: Math.PI / 3,
+            zoom: 1,
             isPinching: false,
             previousPinchDistance: 0
         };
 
-        function init() {
-            // Render LaTeX equation
-            renderEquation();
-            
-            // Scene setup
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x191919);
+        // PERFORMANCE: Compile function once and update mobile/desktop errors
+        function updateCompiledFunction() {
+            const errorMsg = document.getElementById('error-message');
+            const errorMsgMobile = document.getElementById('error-message-mobile');
+            try {
+                compiledFunction = new Function('t', 'Math', `return ${functionText}`);
+                // Test the function
+                compiledFunction(1, Math);
+                
+                if (errorMsg) errorMsg.style.display = 'none';
+                if (errorMsgMobile) errorMsgMobile.style.display = 'none';
+                return true;
+            } catch (e) {
+                compiledFunction = null;
+                const errorText = 'Error: ' + e.message;
+                if (errorMsg) {
+                    errorMsg.textContent = errorText;
+                    errorMsg.style.display = 'block';
+                }
+                if (errorMsgMobile) {
+                    errorMsgMobile.textContent = errorText;
+                    errorMsgMobile.style.display = 'block';
+                }
+                return false;
+            }
+        }
 
-            // Orthographic camera
-            const container = document.getElementById('canvas-container');
+        // PERFORMANCE: Use pre-compiled function
+        function evaluateFunction(t) {
+            if (!compiledFunction) return 0;
+            try {
+                const result = compiledFunction(t, Math);
+                return (typeof result === 'number' && isFinite(result)) ? result : 0;
+            } catch (e) {
+                return 0; 
+            }
+        }
+
+        function init() {
+            renderEquation();
+            updateCompiledFunction(); 
+            
+            sceneTime = new THREE.Scene();
+            sceneTime.background = new THREE.Color(0x191919);
+            
+            sceneFreq = new THREE.Scene();
+            sceneFreq.background = new THREE.Color(0x191919);
+
+            setupViewport('time');
+            setupViewport('freq');
+
+            createTimeDomain();
+            createFrequencyDomain();
+
+            setupEventListeners();
+
+            calculateTraceData();
+            updateVisualization();
+
+            animate();
+        }
+
+        function setupViewport(domain) {
+            const container = document.getElementById(`${domain}-viewport`);
             const aspect = container.clientWidth / container.clientHeight;
             const frustumSize = 15;
-            camera = new THREE.OrthographicCamera(
+            
+            const camera = new THREE.OrthographicCamera(
                 frustumSize * aspect / -2,
                 frustumSize * aspect / 2,
                 frustumSize / 2,
@@ -177,65 +537,87 @@
                 0.1,
                 1000
             );
-            updateCameraPosition();
-
-            // Renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             container.appendChild(renderer.domElement);
-
-            // Create scene elements
-            createGridPlane('complex');
-            createGridPlane('time');
-            createAxes();
-
-            // Event listeners
-            setupEventListeners();
-
-            // Initial visualization
-            updateVisualization();
-
-            // Animation loop
-            animate();
+            
+            if (domain === 'time') {
+                cameraTime = camera;
+                rendererTime = renderer;
+                updateCameraPosition('time');
+            } else {
+                cameraFreq = camera;
+                rendererFreq = renderer;
+                updateCameraPosition('freq');
+            }
         }
 
-        function createGridPlane(type) {
+        function createTimeDomain() {
+            createGridPlane(sceneTime, 'complex');
+            createGridPlane(sceneTime, 'time');
+            createAxes(sceneTime, 'time');
+        }
+
+        function createFrequencyDomain() {
+            createGridPlane(sceneFreq, 'complex');
+            createGridPlane(sceneFreq, 'frequency');
+            createAxes(sceneFreq, 'frequency');
+        }
+
+        function createGridPlane(scene, type) {
             const size = 10;
             const divisions = 10;
             const gridHelper = new THREE.GridHelper(size, divisions, 0x444444, 0x444444);
             
             if (type === 'complex') {
-                // Vertical plane (Real vs Imaginary)
                 gridHelper.rotation.z = Math.PI / 2;
                 gridHelper.position.set(0, 0, 0);
                 
-                // Add semi-transparent plane
                 const planeGeom = new THREE.PlaneGeometry(10, 10);
                 const planeMat = new THREE.MeshBasicMaterial({ 
                     color: 0x1a3a4a,
                     transparent: true, 
                     opacity: 0.5,
-                    side: THREE.DoubleSide
+                    side: THREE.DoubleSide,
+                    depthWrite: false
                 });
                 const plane = new THREE.Mesh(planeGeom, planeMat);
                 plane.rotation.y = Math.PI / 2;
+                plane.renderOrder = -1;
                 scene.add(plane);
-            } else {
-                // Horizontal plane (Real vs Time)
+            } else if (type === 'time') {
                 gridHelper.rotation.y = Math.PI / 2;
                 gridHelper.position.set(0, 0, 0);
                 
-                // Add semi-transparent plane
                 const planeGeom = new THREE.PlaneGeometry(10, 10);
                 const planeMat = new THREE.MeshBasicMaterial({ 
                     color: 0x2a2a1a,
                     transparent: true, 
                     opacity: 0.5,
-                    side: THREE.DoubleSide
+                    side: THREE.DoubleSide,
+                    depthWrite: false
                 });
                 const plane = new THREE.Mesh(planeGeom, planeMat);
                 plane.rotation.x = Math.PI / 2;
+                plane.renderOrder = -1;
+                scene.add(plane);
+            } else if (type === 'frequency') {
+                gridHelper.rotation.y = Math.PI / 2;
+                gridHelper.position.set(0, 0, 0);
+                
+                const planeGeom = new THREE.PlaneGeometry(10, 10);
+                const planeMat = new THREE.MeshBasicMaterial({ 
+                    color: 0x3a2a1a,
+                    transparent: true, 
+                    opacity: 0.5,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+                const plane = new THREE.Mesh(planeGeom, planeMat);
+                plane.rotation.x = Math.PI / 2;
+                plane.renderOrder = -1;
                 scene.add(plane);
             }
             
@@ -255,14 +637,19 @@
             context.fillText(text, 128, 64);
             
             const texture = new THREE.CanvasTexture(canvas);
-            const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+            const spriteMaterial = new THREE.SpriteMaterial({ 
+                map: texture,
+                depthTest: true,
+                depthWrite: false
+            });
             const sprite = new THREE.Sprite(spriteMaterial);
             sprite.scale.set(scale, scale / 2, 1);
+            sprite.renderOrder = -1;
             
             return sprite;
         }
 
-        function createAxes() {
+        function createAxes(scene, domain) {
             const arrowLength = 5;
             const arrowColor = 0xffffff;
             
@@ -296,8 +683,8 @@
             imagLabel.position.set(0, arrowLength + 0.8, 0);
             scene.add(imagLabel);
             
-            // Time axis (Z)
-            const timeArrow = new THREE.ArrowHelper(
+            // Third axis (Z) - time or frequency
+            const zArrow = new THREE.ArrowHelper(
                 new THREE.Vector3(0, 0, 1),
                 new THREE.Vector3(0, 0, 0),
                 arrowLength,
@@ -305,14 +692,17 @@
                 0.3,
                 0.2
             );
-            scene.add(timeArrow);
+            scene.add(zArrow);
             
-            const timeLabel = createTextSprite('t', 2);
-            timeLabel.position.set(0, 0, arrowLength + 0.8);
-            scene.add(timeLabel);
+            const zLabel = createTextSprite(domain === 'time' ? 't' : 'f', 2);
+            zLabel.position.set(0, 0, arrowLength + 0.8);
+            scene.add(zLabel);
         }
 
-        function updateCameraPosition() {
+        function updateCameraPosition(domain) {
+            const controls = domain === 'time' ? controlsTime : controlsFreq;
+            const camera = domain === 'time' ? cameraTime : cameraFreq;
+            
             const radius = 30;
             const x = radius * Math.sin(controls.phi) * Math.cos(controls.theta);
             const y = radius * Math.cos(controls.phi);
@@ -322,182 +712,391 @@
             camera.lookAt(0, 0, 0);
         }
 
-        function updateCameraZoom() {
+        function updateCameraZoom(domain) {
+            const controls = domain === 'time' ? controlsTime : controlsFreq;
+            const camera = domain === 'time' ? cameraTime : cameraFreq;
+            
             camera.zoom = controls.zoom;
             camera.updateProjectionMatrix();
         }
 
-        function evaluateFunction(t) {
-            try {
-                const func = new Function('t', 'Math', `return ${functionText}`);
-                return func(t, Math);
-            } catch (e) {
-                return 0;
-            }
-        }
-
+        // UI SYNC: Updated to render to mobile and desktop
         function renderEquation() {
             const equationElement = document.getElementById('equation');
+            const mobileEquationElement = document.getElementById('mobile-equation');
 
             function renderWith(freq) {
                 const val = Number(freq);
                 const formatted = Math.abs(val) < 1e-12 ? '0' : val.toFixed(3);
-                const latex = `F(${formatted}) = \\int_{-\\infty}^{+\\infty} f(t)\\,e^{-2\\pi i\\, ${formatted}\\, t}dt `;
-                katex.render(latex, equationElement, { throwOnError: false, displayMode: false });
+                const latex = `\\hat{f}(${formatted}) = \\int_{-\\infty}^{+\\infty} f(t)\\,e^{-2\\pi i\\, ${formatted}\\, t}dt `;
+                
+                try {
+                    if (equationElement && window.katex) {
+                        katex.render(latex, equationElement, { throwOnError: false, displayMode: false });
+                    }
+                    if (mobileEquationElement && window.katex) {
+                        katex.render(latex, mobileEquationElement, { throwOnError: false, displayMode: false });
+                    }
+                } catch (e) {
+                    console.error("KaTeX render error:", e);
+                }
             }
 
             if (!window.katex) {
-                // retry until KaTeX loads
                 setTimeout(renderEquation, 100);
                 return;
             }
 
-            // initial render using current global frequency
             renderWith(frequency);
 
-            // update equation when the slider changes (makes it dynamic)
             const slider = document.getElementById('freq-slider');
+            const sliderMobile = document.getElementById('freq-slider-mobile');
+
+            const renderListener = (e) => {
+                renderWith(parseFloat(e.target.value));
+            };
+
             if (slider) {
-                slider.addEventListener('input', (e) => {
-                    renderWith(parseFloat(e.target.value));
-                }, { passive: true });
+                slider.addEventListener('input', renderListener, { passive: true });
+            }
+            if (sliderMobile) {
+                sliderMobile.addEventListener('input', renderListener, { passive: true });
             }
         }
 
-        function updateVisualization() {
-            // Remove old dynamic objects
-            scene.children = scene.children.filter(child => !child.userData.isDynamic);
-
-            const errorMsg = document.getElementById('error-message');
+        function calculateTraceData() {
+            const samples = 3000;
+            const freqMin = -5;
+            const freqMax = 5;
+            const tMax = 10;
+            const tSamples = 3000;
             
-            try {
-                // Calculate Fourier transform
-                const samples = 10000;
-                const tMax = 10;
+            const tracePoints = [];
+            
+            const evaluateAtFreq = (f) => {
                 let realSum = 0;
                 let imagSum = 0;
-
-                const curvePoints = [];
                 
-                for (let i = 0; i < samples; i++) {
-                    const t = (i / samples) * tMax;
-                    const ft = evaluateFunction(t);
-                    const angle = -2 * Math.PI * frequency * t;
+                for (let i = 0; i < tSamples; i++) {
+                    const t = (i / tSamples) * tMax;
+                    const ft = evaluateFunction(t); // Uses optimized function
+                    const angle = -2 * Math.PI * f * t;
                     const expReal = Math.cos(angle);
                     const expImag = Math.sin(angle);
                     
-                    realSum += ft * expReal * (tMax / samples);
-                    imagSum += ft * expImag * (tMax / samples);
-                    
-                    const x = ft * expReal;
-                    const y = ft * expImag;
-                    curvePoints.push(new THREE.Vector3(x, y, t - tMax/2));
-                }
-
-                // Draw Fourier transform vector
-                const vectorGeom = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(0, 0, 0),
-                    new THREE.Vector3(realSum, imagSum, 0)
-                ]);
-                const vectorMat = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
-                const vectorLine = new THREE.Line(vectorGeom, vectorMat);
-                vectorLine.userData.isDynamic = true;
-                scene.add(vectorLine);
-
-                // Draw cone at end of vector
-                const magnitude = Math.sqrt(realSum * realSum + imagSum * imagSum);
-                const coneHeight = Math.max(0.1, Math.min(0.4, magnitude * 0.15));
-                const coneRadius = coneHeight * 0.5;
-                
-                const coneGeom = new THREE.ConeGeometry(coneRadius, coneHeight, 16);
-                const coneMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-                const cone = new THREE.Mesh(coneGeom, coneMat);
-                
-                cone.position.set(realSum, imagSum, 0);
-                
-                if (magnitude > 0.001) {
-                    const direction = new THREE.Vector3(realSum, imagSum, 0).normalize();
-                    const up = new THREE.Vector3(0, 1, 0);
-                    const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
-                    cone.setRotationFromQuaternion(quaternion);
-                    cone.position.add(direction.multiplyScalar(coneHeight / 2));
+                    realSum += ft * expReal * (tMax / tSamples);
+                    imagSum += ft * expImag * (tMax / tSamples);
                 }
                 
-                cone.userData.isDynamic = true;
-                scene.add(cone);
-
-                // Draw the curve
-                const curveGeom = new THREE.BufferGeometry().setFromPoints(curvePoints);
-                const curveMat = new THREE.LineBasicMaterial({ color: 0xff6b6b, linewidth: 2 });
-                const curveLine = new THREE.Line(curveGeom, curveMat);
-                curveLine.userData.isDynamic = true;
-                scene.add(curveLine);
-
-                errorMsg.style.display = 'none';
-            } catch (e) {
-                errorMsg.textContent = 'Error evaluating function';
-                errorMsg.style.display = 'block';
+                return { real: realSum, imag: imagSum, freq: f };
+            };
+            
+            // Initial coarse sampling
+            const coarsePoints = [];
+            for (let i = 0; i <= samples; i++) {
+                const f = freqMin + (freqMax - freqMin) * (i / samples);
+                coarsePoints.push(evaluateAtFreq(f));
             }
+            
+            // Adaptive refinement
+            const refineSegment = (p1, p2, depth = 0) => {
+                if (depth > 4) return [];
+                
+                const midFreq = (p1.freq + p2.freq) / 2;
+                const midPoint = evaluateAtFreq(midFreq);
+                
+                const dx1 = midPoint.real - p1.real;
+                const dy1 = midPoint.imag - p1.imag;
+                const dx2 = p2.real - midPoint.real;
+                const dy2 = p2.imag - midPoint.imag;
+                
+                const dist1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+                const dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+                const directDist = Math.sqrt((p2.real - p1.real) ** 2 + (p2.imag - p1.imag) ** 2);
+                
+                const deviation = (dist1 + dist2) - directDist;
+                
+                if (deviation > 0.05) {
+                    return [
+                        ...refineSegment(p1, midPoint, depth + 1),
+                        midPoint,
+                        ...refineSegment(midPoint, p2, depth + 1)
+                    ];
+                }
+                
+                return [];
+            };
+            
+            // Build refined trace
+            tracePoints.push(coarsePoints[0]);
+            for (let i = 0; i < coarsePoints.length - 1; i++) {
+                const refined = refineSegment(coarsePoints[i], coarsePoints[i + 1]);
+                tracePoints.push(...refined);
+                tracePoints.push(coarsePoints[i + 1]);
+            }
+            
+            traceData = tracePoints;
+        }
+
+        function updateVisualization() {
+            sceneTime.children = sceneTime.children.filter(child => !child.userData.isDynamic);
+            sceneFreq.children = sceneFreq.children.filter(child => !child.userData.isDynamic);
+            
+            const samples = 10000;
+            const tMax = 10;
+            let realSum = 0;
+            let imagSum = 0;
+
+            const curvePoints = [];
+            
+            for (let i = 0; i < samples; i++) {
+                const t = (i / samples) * tMax;
+                const ft = evaluateFunction(t); // Uses optimized function
+                const angle = -2 * Math.PI * frequency * t;
+                const expReal = Math.cos(angle);
+                const expImag = Math.sin(angle);
+                
+                realSum += ft * expReal * (tMax / samples);
+                imagSum += ft * expImag * (tMax / samples);
+                
+                const x = ft * expReal;
+                const y = ft * expImag;
+                curvePoints.push(new THREE.Vector3(x, y, t - tMax/2));
+            }
+
+            // TIME DOMAIN: Draw the curve
+            const curveGeom = new THREE.BufferGeometry().setFromPoints(curvePoints);
+            const curveMat = new THREE.LineBasicMaterial({ color: 0xff6b6b, linewidth: 2 });
+            const curveLine = new THREE.Line(curveGeom, curveMat);
+            curveLine.userData.isDynamic = true;
+            sceneTime.add(curveLine);
+
+            // TIME DOMAIN: Draw Fourier transform vector
+            const vectorGeom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(realSum, imagSum, 0)
+            ]);
+            const vectorMat = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
+            const vectorLine = new THREE.Line(vectorGeom, vectorMat);
+            vectorLine.userData.isDynamic = true;
+            sceneTime.add(vectorLine);
+
+            // TIME DOMAIN: Draw cone at tip of vector
+            const magnitude = Math.sqrt(realSum * realSum + imagSum * imagSum);
+            const coneHeight = Math.max(0.1, Math.min(0.4, magnitude * 0.15));
+            const coneRadius = coneHeight * 0.5;
+            
+            const coneGeom = new THREE.ConeGeometry(coneRadius, coneHeight, 16);
+            const coneMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const cone = new THREE.Mesh(coneGeom, coneMat);
+            
+            if (magnitude > 0.001) {
+                const direction = new THREE.Vector3(realSum, imagSum, 0).normalize();
+                const up = new THREE.Vector3(0, 1, 0);
+                const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
+                cone.setRotationFromQuaternion(quaternion);
+                cone.position.set(realSum, imagSum, 0);
+                cone.position.add(direction.multiplyScalar(-coneHeight / 2));
+            } else {
+                cone.position.set(realSum, imagSum, 0);
+            }
+            
+            cone.userData.isDynamic = true;
+            sceneTime.add(cone);
+
+            // TIME DOMAIN: Draw trace curve in complex plane
+            if (showTrace && traceData) {
+                const tracePoints = traceData.map(p => 
+                    new THREE.Vector3(p.real, p.imag, 0)
+                );
+                const traceGeom = new THREE.BufferGeometry().setFromPoints(tracePoints);
+                const traceMat = new THREE.LineBasicMaterial({ 
+                    color: 0xffaa00, 
+                    linewidth: 2,
+                    transparent: true,
+                    opacity: 0.7,
+                    depthTest: true,
+                    depthWrite: true
+                });
+                const traceLine = new THREE.Line(traceGeom, traceMat);
+                traceLine.renderOrder = 1;
+                traceLine.userData.isDynamic = true;
+                sceneTime.add(traceLine);
+            }
+
+            // FREQUENCY DOMAIN: Draw 3D frequency trace (always visible)
+            if (traceData) {
+                const freqTracePoints = traceData.map(p => 
+                    new THREE.Vector3(p.real, p.imag, p.freq)
+                );
+                const freqTraceGeom = new THREE.BufferGeometry().setFromPoints(freqTracePoints);
+                const freqTraceMat = new THREE.LineBasicMaterial({ 
+                    color: 0xffaa00, 
+                    linewidth: 2 
+                });
+                const freqTraceLine = new THREE.Line(freqTraceGeom, freqTraceMat);
+                freqTraceLine.userData.isDynamic = true;
+                sceneFreq.add(freqTraceLine);
+            }
+
+            // FREQUENCY DOMAIN: Draw sliding vector
+            const freqVectorGeom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, frequency),
+                new THREE.Vector3(realSum, imagSum, frequency)
+            ]);
+            const freqVectorMat = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
+            const freqVectorLine = new THREE.Line(freqVectorGeom, freqVectorMat);
+            freqVectorLine.userData.isDynamic = true;
+            sceneFreq.add(freqVectorLine);
+
+            // FREQUENCY DOMAIN: Draw cone at tip of sliding vector
+            const freqCone = new THREE.Mesh(coneGeom.clone(), coneMat.clone());
+            
+            if (magnitude > 0.001) {
+                const direction = new THREE.Vector3(realSum, imagSum, 0).normalize();
+                const up = new THREE.Vector3(0, 1, 0);
+                const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
+                freqCone.setRotationFromQuaternion(quaternion);
+                freqCone.position.set(realSum, imagSum, frequency);
+                freqCone.position.add(direction.multiplyScalar(-coneHeight / 2));
+            } else {
+                freqCone.position.set(realSum, imagSum, frequency);
+            }
+            
+            freqCone.userData.isDynamic = true;
+            sceneFreq.add(freqCone);
         }
 
         function getPinchDistance(touch1, touch2) {
             const dx = touch2.clientX - touch1.clientX;
-            const dy = touch2.clientY - touch1.clientY;
+            const dy = touch2.clientY - touchi.clientY;
             return Math.sqrt(dx * dx + dy * dy);
         }
 
+        function isPointInElement(x, y, element) {
+            const rect = element.getBoundingClientRect();
+            return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+        }
+
+        // UI SYNC: Rewritten to handle mobile and desktop UI
         function setupEventListeners() {
-            const canvas = renderer.domElement;
+            // Get all elements
             const freqSlider = document.getElementById('freq-slider');
+            const freqSliderMobile = document.getElementById('freq-slider-mobile');
             const freqValue = document.getElementById('freq-value');
             const functionInput = document.getElementById('function-input');
+            const functionInputMobile = document.getElementById('function-input-mobile');
+            const traceToggle = document.getElementById('trace-toggle');
+            const hudToggle = document.getElementById('hud-toggle');
+            const hudToggleMobile = document.getElementById('hud-toggle-mobile');
+            const hud = document.getElementById('hud');
+            const mobileFunctionPanel = document.getElementById('mobile-function-panel');
 
-            // Frequency slider
-            freqSlider.addEventListener('input', (e) => {
+            // Desktop HUD toggle
+            if (hudToggle && hud) {
+                hudToggle.addEventListener('click', () => {
+                    hud.classList.toggle('hidden');
+                });
+            }
+
+            // Mobile HUD toggle
+            if (hudToggleMobile && mobileFunctionPanel) {
+                hudToggleMobile.addEventListener('click', () => {
+                    mobileFunctionPanel.classList.toggle('hidden');
+                });
+            }
+
+            // Slider handler
+            const handleSliderInput = (e) => {
                 frequency = parseFloat(e.target.value);
-                freqValue.textContent = frequency.toFixed(2);
+                if (freqValue) freqValue.textContent = frequency.toFixed(2);
+                
+                // Sync sliders
+                if (freqSlider) freqSlider.value = frequency;
+                if (freqSliderMobile) freqSliderMobile.value = frequency;
+                
                 updateVisualization();
-            });
+            };
 
-            // Function input
-            functionInput.addEventListener('input', (e) => {
+            if (freqSlider) {
+                freqSlider.addEventListener('input', handleSliderInput);
+            }
+            if (freqSliderMobile) {
+                freqSliderMobile.addEventListener('input', handleSliderInput);
+                freqSliderMobile.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+                freqSliderMobile.addEventListener('touchmove', (e) => e.stopPropagation(), { passive: true });
+            }
+
+            // Function input handler
+            const handleFunctionInput = (e) => {
                 functionText = e.target.value;
-                updateVisualization();
+                
+                // Sync inputs
+                if (functionInput) functionInput.value = functionText;
+                if (functionInputMobile) functionInputMobile.value = functionText;
+                
+                if (updateCompiledFunction()) {
+                    calculateTraceData();
+                    updateVisualization();
+                }
+            };
+
+            if (functionInput) {
+                functionInput.addEventListener('input', handleFunctionInput);
+            }
+            if (functionInputMobile) {
+                functionInputMobile.addEventListener('input', handleFunctionInput);
+            }
+
+            // Trace toggle
+            if (traceToggle) {
+                traceToggle.addEventListener('change', (e) => {
+                    showTrace = e.target.checked;
+                    updateVisualization();
+                });
+            }
+
+            // Setup viewport controls
+            setupViewportControls('time', rendererTime.domElement);
+            setupViewportControls('freq', rendererFreq.domElement);
+
+            // Window resize
+            window.addEventListener('resize', () => {
+                resizeViewport('time');
+                resizeViewport('freq');
             });
 
-            // Mouse/Touch controls
+            // Prevent body touch scroll
+            document.body.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+            }, { passive: false });
+        }
+
+        // ROBUST TOUCH: Copied from previous version
+        function setupViewportControls(domain, canvas) {
+            const controls = domain === 'time' ? controlsTime : controlsFreq;
+            
             const getPointerPosition = (e) => {
-                if (e.touches && e.touches.length === 1) {
+                if (e.touches && e.touches.length > 0) {
                     return { x: e.touches[0].clientX, y: e.touches[0].clientY };
                 }
                 return { x: e.clientX, y: e.clientY };
             };
 
-            const onPointerDown = (e) => {
-                if (e.touches && e.touches.length === 2) {
-                    // Start pinch zoom
-                    controls.isPinching = true;
-                    controls.previousPinchDistance = getPinchDistance(e.touches[0], e.touches[1]);
-                } else {
-                    // Start dragging
-                    controls.isDragging = true;
-                    controls.previousMousePosition = getPointerPosition(e);
-                }
-            };
-
             const onPointerMove = (e) => {
                 if (controls.isPinching && e.touches && e.touches.length === 2) {
-                    // Handle pinch zoom
+                    e.preventDefault();
                     const currentDistance = getPinchDistance(e.touches[0], e.touches[1]);
                     const delta = currentDistance - controls.previousPinchDistance;
                     
                     controls.zoom = Math.max(0.5, Math.min(3, 
                         controls.zoom + delta * 0.005));
-                    updateCameraZoom();
+                    updateCameraZoom(domain);
                     
                     controls.previousPinchDistance = currentDistance;
+
                 } else if (controls.isDragging) {
-                    // Handle rotation
+                    e.preventDefault();
                     const pos = getPointerPosition(e);
                     const deltaX = pos.x - controls.previousMousePosition.x;
                     const deltaY = pos.y - controls.previousMousePosition.y;
@@ -507,53 +1106,94 @@
                         controls.phi + deltaY * 0.005));
 
                     controls.previousMousePosition = pos;
-                    updateCameraPosition();
+                    updateCameraPosition(domain);
                 }
             };
 
             const onPointerUp = () => {
                 controls.isDragging = false;
                 controls.isPinching = false;
+                
+                window.removeEventListener('mousemove', onPointerMove);
+                window.removeEventListener('mouseup', onPointerUp);
+                window.removeEventListener('touchmove', onPointerMove);
+                window.removeEventListener('touchend', onPointerUp);
+            };
+
+            const onPointerDown = (e) => {
+                if (e.type === 'touchstart' && !isPointInElement(e.touches[0].clientX, e.touches[0].clientY, canvas)) {
+                    return;
+                }
+                
+                e.preventDefault();
+                
+                if (e.touches && e.touches.length === 2) {
+                    if (isPointInElement(e.touches[0].clientX, e.touches[0].clientY, canvas) &&
+                        isPointInElement(e.touches[1].clientX, e.touches[1].clientY, canvas)) {
+                        
+                        controls.isDragging = false;
+                        controls.isPinching = true;
+                        controls.previousPinchDistance = getPinchDistance(e.touches[0], e.touches[1]);
+                    }
+                } else {
+                    controls.isPinching = false;
+                    controls.isDragging = true;
+                    controls.previousMousePosition = getPointerPosition(e);
+                }
+
+                window.addEventListener('mousemove', onPointerMove);
+                window.addEventListener('mouseup', onPointerUp);
+                window.addEventListener('touchmove', onPointerMove, { passive: false });
+                window.addEventListener('touchend', onPointerUp);
             };
 
             const onWheel = (e) => {
                 e.preventDefault();
                 controls.zoom = Math.max(0.5, Math.min(3, 
                     controls.zoom - e.deltaY * 0.001));
-                updateCameraZoom();
+                updateCameraZoom(domain);
             };
 
             canvas.addEventListener('mousedown', onPointerDown);
-            canvas.addEventListener('mousemove', onPointerMove);
-            canvas.addEventListener('mouseup', onPointerUp);
-            canvas.addEventListener('touchstart', onPointerDown, { passive: true });
-            canvas.addEventListener('touchmove', onPointerMove, { passive: true });
-            canvas.addEventListener('touchend', onPointerUp);
+            canvas.addEventListener('touchstart', onPointerDown, { passive: false });
             canvas.addEventListener('wheel', onWheel, { passive: false });
+        }
 
-            // Window resize
-            window.addEventListener('resize', () => {
-                const container = document.getElementById('canvas-container');
-                const aspect = container.clientWidth / container.clientHeight;
-                const frustumSize = 15;
-                camera.left = frustumSize * aspect / -2;
-                camera.right = frustumSize * aspect / 2;
-                camera.top = frustumSize / 2;
-                camera.bottom = frustumSize / -2;
-                camera.updateProjectionMatrix();
-                renderer.setSize(container.clientWidth, container.clientHeight);
-            });
+        function resizeViewport(domain) {
+            const container = document.getElementById(`${domain}-viewport`);
+            if (!container) return;
+            
+            const camera = domain === 'time' ? cameraTime : cameraFreq;
+const renderer = domain === 'time' ? rendererTime : rendererFreq;
+
+            if (!camera || !renderer) return;
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            if (width === 0 || height === 0) return;
+            
+            const aspect = width / height;
+            const frustumSize = 15;
+            camera.left = frustumSize * aspect / -2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = frustumSize / -2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            renderer.render(scene, camera);
+            if (rendererTime && sceneTime && cameraTime) {
+                rendererTime.render(sceneTime, cameraTime);
+            }
+            if (rendererFreq && sceneFreq && cameraFreq) {
+                rendererFreq.render(sceneFreq, cameraFreq);
+            }
         }
 
-        // Initialize when page loads
         window.addEventListener('load', init);
     </script>
 </body>
 </html>
-
-
