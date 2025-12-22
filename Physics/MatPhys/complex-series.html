@@ -38,23 +38,10 @@
             transition: transform 0.3s ease;
         }
         #controls.hidden {
-            overflow: visible;
+            overflow: hidden;
         }
         #toggleButton {
             display: none;
-            width: calc(100% + 40px);
-            background: rgba(40, 40, 40, 0.95);
-            border: none;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            color: #4da6ff;
-            padding: 12px;
-            font-size: 14px;
-            cursor: pointer;
-            border-radius: 0 0 12px 12px;
-            margin: 20px -20px 0 -20px;
-        }
-        #toggleButton:hover {
-            background: rgba(50, 50, 50, 0.95);
         }
         #controlsContent {
             padding-bottom: 20px;
@@ -136,7 +123,7 @@
             padding-top: 15px;
             border-top: 1px solid #333;
         }
-        @media (max-width: 768px) {
+        @media (max-width: 480px) {
             #controls {
                 top: auto;
                 bottom: 60px;
@@ -147,10 +134,27 @@
                 max-height: calc(70vh - 60px);
             }
             #controls.hidden {
-                transform: translateY(calc(100% - 48px));
+                transform: translateY(calc(70vh - 60px));
             }
+            /* Show a separate toggle button outside the panel to avoid overlap/tab artifacts */
             #toggleButton {
                 display: block;
+                position: absolute;
+                left: 20px;
+                right: 20px;
+                bottom: 20px;
+                background: rgba(40, 40, 40, 0.95);
+                border: none;
+                color: #4da6ff;
+                padding: 12px;
+                font-size: 14px;
+                cursor: pointer;
+                border-radius: 12px;
+                box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+                text-align: center;
+            }
+            #toggleButton:hover {
+                background: rgba(50, 50, 50, 0.95);
             }
         }
     </style>
@@ -180,8 +184,8 @@
             • Drag the red dot to move expansion point
         </div>
         </div>
-        <button id="toggleButton">Hide Controls</button>
     </div>
+    <button id="toggleButton">Hide Controls</button>
     <div id="labels"></div>
 
     <script>
