@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complex Series Visualizer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #191919;
+            overflow: hidden;
+            color: #fff;
+        }
+        #canvas {
+            display: block;
+            cursor: crosshair;
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(40, 40, 40, 0.95);
+            padding: 20px;
+            padding-bottom: 0;
+            border-radius: 12px;
+            max-width: 350px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-height: calc(100vh - 40px);
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        #controls.hidden {
+            overflow: visible;
+        }
+        #toggleButton {
+            display: none;
+            width: calc(100% + 40px);
+            background: rgba(40, 40, 40, 0.95);
+            border: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #4da6ff;
+            padding: 12px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 0 0 12px 12px;
+            margin: 20px -20px 0 -20px;
+        }
+        #toggleButton:hover {
+            background: rgba(50, 50, 50, 0.95);
+        }
+        #controlsContent {
+            padding-bottom: 20px;
+            transition: opacity 0.3s ease, max-height 0.3s ease;
+            overflow-y: auto;
+            max-height: calc(70vh - 140px);
+        }
+        #controls.hidden #controlsContent {
+            opacity: 0;
+            max-height: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        h2 {
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #4da6ff;
+        }
+        label {
+            display: block;
+            margin-top: 12px;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #ccc;
+        }
+        input[type="text"], input[type="number"], textarea {
+            width: 100%;
+            padding: 8px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, textarea:focus {
+            outline: none;
+            border-color: #4da6ff;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin-top: 5px;
+        }
+        .slider-value {
+            display: inline-block;
+            margin-left: 10px;
+            color: #4da6ff;
+            font-weight: bold;
+        }
+        .error {
+            color: #ff6b6b;
+            font-size: 12px;
+            margin-top: 5px;
+            display: none;
+        }
+        .error.show {
+            display: block;
+        }
+        .info {
+            font-size: 12px;
+            color: #888;
+            margin-top: 3px;
+        }
+        .katex-label {
+            position: absolute;
+            pointer-events: none;
+            background: rgba(25, 25, 25, 0.8);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .controls-hint {
+            font-size: 11px;
+            color: #666;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+        @media (max-width: 768px) {
+            #controls {
+                top: auto;
+                bottom: 60px;
+                left: 20px;
+                right: 20px;
+                max-width: none;
+                font-size: 13px;
+                max-height: calc(70vh - 60px);
+            }
+            #controls.hidden {
+                transform: translateY(calc(100% - 48px));
+            }
+            #toggleButton {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="controls">
+        <div id="controlsContent">
+            <h2>Complex Series Visualizer</h2>
+        
+        <label>Series Expression (function of n):</label>
+        <textarea id="seriesInput" placeholder="e.g., z0^n / factorial(n)">z0^n / factorial(n)</textarea>
+        <div class="info">Use: z0, n, exp(), sin(), cos(), log(), sqrt(), ^, *, /, +, -, factorial()</div>
+        <div class="error" id="seriesError"></div>
+        
+        <label>Starting index (first n):</label>
+        <input type="number" id="startNInput" value="0" min="0">
+        <div class="error" id="startNError"></div>
+        
+        <label>Number of Terms: <span class="slider-value" id="termsValue">10</span></label>
+        <input type="range" id="termsSlider" min="1" max="1000" value="10">
+        
+        <div class="controls-hint">
+            <strong>Controls:</strong><br>
+            • Mouse wheel / Pinch: Zoom<br>
+            • Left-click drag: Pan / Move expansion point<br>
+            • Drag the red dot to move expansion point
+        </div>
+        </div>
+        <button id="toggleButton">Hide Controls</button>
+    </div>
+    <div id="labels"></div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const seriesInput = document.getElementById('seriesInput');
+        const termsSlider = document.getElementById('termsSlider');
+        const termsValue = document.getElementById('termsValue');
+        const startNInput = document.getElementById('startNInput');
+        const seriesError = document.getElementById('seriesError');
+        const startNError = document.getElementById('startNError');
+        const labelsContainer = document.getElementById('labels');
+        const toggleButton = document.getElementById('toggleButton');
+        const controlsPanel = document.getElementById('controls');
+
+        let scale = 50;
+        let offsetX = 0;
+        let offsetY = 0;
+        let expansionPoint = { re: 0, im: 0 };
+        let isDragging = false;
+        let dragPoint = null;
+        let isPanning = false;
+        let lastPanX = 0;
+        let lastPanY = 0;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            offsetX = canvas.width / 2;
+            offsetY = canvas.height / 2;
+            draw();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function factorial(n) {
+            if (n < 0) return NaN;
+            if (n === 0 || n === 1) return 1;
+            let result = 1;
+            for (let i = 2; i <= n; i++) result *= i;
+            return result;
+        }
+
+        function complexPow(base, exp) {
+            if (exp === 0) return { re: 1, im: 0 };
+            if (base.re === 0 && base.im === 0) return { re: 0, im: 0 };
+            
+            const r = Math.sqrt(base.re * base.re + base.im * base.im);
+            const theta = Math.atan2(base.im, base.re);
+            const newR = Math.pow(r, exp);
+            const newTheta = theta * exp;
+            
+            return {
+                re: newR * Math.cos(newTheta),
+                im: newR * Math.sin(newTheta)
+            };
+        }
+
+        function complexMul(a, b) {
+            return {
+                re: a.re * b.re - a.im * b.im,
+                im: a.re * b.im + a.im * b.re
+            };
+        }
+
+        function complexDiv(a, b) {
+            const denom = b.re * b.re + b.im * b.im;
+            if (denom === 0) return { re: NaN, im: NaN };
+            return {
+                re: (a.re * b.re + a.im * b.im) / denom,
+                im: (a.im * b.re - a.re * b.im) / denom
+            };
+        }
+
+        function complexAdd(a, b) {
+            return { re: a.re + b.re, im: a.im + b.im };
+        }
+
+        function complexSub(a, b) {
+            return { re: a.re - b.re, im: a.im - b.im };
+        }
+
+        function complexExp(z) {
+            const e = Math.exp(z.re);
+            return { re: e * Math.cos(z.im), im: e * Math.sin(z.im) };
+        }
+
+        function complexLog(z) {
+            const r = Math.sqrt(z.re * z.re + z.im * z.im);
+            const theta = Math.atan2(z.im, z.re);
+            return { re: Math.log(r), im: theta };
+        }
+
+        function complexSin(z) {
+            return {
+                re: Math.sin(z.re) * Math.cosh(z.im),
+                im: Math.cos(z.re) * Math.sinh(z.im)
+            };
+        }
+
+        function complexCos(z) {
+            return {
+                re: Math.cos(z.re) * Math.cosh(z.im),
+                im: -Math.sin(z.re) * Math.sinh(z.im)
+            };
+        }
+
+        function complexSqrt(z) {
+            const r = Math.sqrt(z.re * z.re + z.im * z.im);
+            const theta = Math.atan2(z.im, z.re);
+            const newR = Math.sqrt(r);
+            const newTheta = theta / 2;
+            return {
+                re: newR * Math.cos(newTheta),
+                im: newR * Math.sin(newTheta)
+            };
+        }
+
+        function evaluateExpression(expr, z0, n) {
+            expr = expr.replace(/\s+/g, '');
+            
+            function parsePrimary(str, pos) {
+                if (str[pos.i] === '(') {
+                    pos.i++;
+                    const result = parseExpression(str, pos);
+                    if (str[pos.i] === ')') pos.i++;
+                    return result;
+                }
+                
+                if (str.substr(pos.i, 10) === 'factorial(') {
+                    pos.i += 10;
+                    const arg = parseExpression(str, pos);
+                    if (str[pos.i] === ')') pos.i++;
+                    if (Math.abs(arg.im) > 1e-10) throw new Error('Factorial requires real argument');
+                    return { re: factorial(Math.round(arg.re)), im: 0 };
+                }
+                
+                if (str.substr(pos.i, 4) === 'exp(') {
+                    pos.i += 4;
+                    const arg = parseExpression(str, pos);
+                    if (str[pos.i] === ')') pos.i++;
+                    return complexExp(arg);
+                }
+                
+                if (str.substr(pos.i, 4) === 'log(') {
+                    pos.i += 4;
+                    const arg = parseExpression(str, pos);
+                    if (str[pos.i] === ')') pos.i++;
+                    return complexLog(arg);
+                }
+                
+                if (str.substr(pos.i, 4) === 'sin(') {
+                    pos.i += 4;
+                    const arg = parseExpression(str, pos);
+                    if (str[pos.i] === ')') pos.i++;
+                    return complexSin(arg);
+                }
+                
+                if (str.substr(pos.i, 4) === 'cos(') {
+                    pos.i += 4;
+                    const arg = parseExpression(str, pos);
+                    if (str[pos.i] === ')') pos.i++;
+                    return complexCos(arg);
+                }
+                
+                if (str.substr(pos.i, 5) === 'sqrt(') {
+                    pos.i += 5;
+                    const arg = parseExpression(str, pos);
+                    if (str[pos.i] === ')') pos.i++;
+                    return complexSqrt(arg);
+                }
+                
+                if (str.substr(pos.i, 2) === 'z0') {
+                    pos.i += 2;
+                    return z0;
+                }
+                
+                if (str[pos.i] === 'n') {
+                    pos.i++;
+                    return { re: n, im: 0 };
+                }
+                
+                if (str[pos.i] === 'e' && (pos.i + 1 >= str.length || !'xp'.includes(str[pos.i + 1]))) {
+                    pos.i++;
+                    return { re: Math.E, im: 0 };
+                }
+                
+                if (str.substr(pos.i, 2) === 'pi') {
+                    pos.i += 2;
+                    return { re: Math.PI, im: 0 };
+                }
+                
+                let numStr = '';
+                if (str[pos.i] === '-' || str[pos.i] === '+') {
+                    numStr += str[pos.i];
+                    pos.i++;
+                }
+                while (pos.i < str.length && (str[pos.i].match(/[0-9.]/) || str[pos.i] === 'i')) {
+                    numStr += str[pos.i];
+                    pos.i++;
+                }
+                
+                if (numStr.includes('i')) {
+                    const num = parseFloat(numStr.replace('i', '')) || 1;
+                    return { re: 0, im: num };
+                }
+                
+                if (numStr) {
+                    return { re: parseFloat(numStr), im: 0 };
+                }
+                
+                throw new Error('Parse error at position ' + pos.i);
+            }
+            
+            function parsePower(str, pos) {
+                let left = parsePrimary(str, pos);
+                while (pos.i < str.length && str[pos.i] === '^') {
+                    pos.i++;
+                    const right = parsePrimary(str, pos);
+                    if (Math.abs(right.im) > 1e-10) throw new Error('Complex exponents not supported');
+                    left = complexPow(left, right.re);
+                }
+                return left;
+            }
+            
+            function parseTerm(str, pos) {
+                let left = parsePower(str, pos);
+                while (pos.i < str.length && (str[pos.i] === '*' || str[pos.i] === '/')) {
+                    const op = str[pos.i];
+                    pos.i++;
+                    const right = parsePower(str, pos);
+                    left = op === '*' ? complexMul(left, right) : complexDiv(left, right);
+                }
+                return left;
+            }
+            
+            function parseExpression(str, pos) {
+                let left = parseTerm(str, pos);
+                while (pos.i < str.length && (str[pos.i] === '+' || str[pos.i] === '-') && str[pos.i - 1] !== 'e' && str[pos.i - 1] !== 'E') {
+                    const op = str[pos.i];
+                    pos.i++;
+                    const right = parseTerm(str, pos);
+                    left = op === '+' ? complexAdd(left, right) : complexSub(left, right);
+                }
+                return left;
+            }
+            
+            const pos = { i: 0 };
+            return parseExpression(expr, pos);
+        }
+
+        function computeSeries() {
+            const expr = seriesInput.value.trim();
+            const numTerms = parseInt(termsSlider.value);
+            const startN = parseInt(startNInput.value);
+            
+            if (!expr) {
+                seriesError.textContent = 'Please enter a series expression';
+                seriesError.classList.add('show');
+                return null;
+            }
+            
+            if (isNaN(startN) || startN < 0) {
+                startNError.textContent = 'Starting index must be a non-negative integer';
+                startNError.classList.add('show');
+                return null;
+            }
+            
+            startNError.classList.remove('show');
+            
+            try {
+                const terms = [];
+                
+                for (let i = 0; i < numTerms; i++) {
+                    const n = startN + i;
+                    const term = evaluateExpression(expr, expansionPoint, n);
+                    if (!isFinite(term.re) || !isFinite(term.im)) {
+                        throw new Error(`Term ${n} is not finite`);
+                    }
+                    terms.push(term);
+                }
+                
+                seriesError.classList.remove('show');
+                return terms;
+            } catch (e) {
+                seriesError.textContent = 'Error: ' + e.message;
+                seriesError.classList.add('show');
+                return null;
+            }
+        }
+
+        function toScreen(re, im) {
+            return {
+                x: offsetX + re * scale,
+                y: offsetY - im * scale
+            };
+        }
+
+        function fromScreen(x, y) {
+            return {
+                re: (x - offsetX) / scale,
+                im: (offsetY - y) / scale
+            };
+        }
+
+        function renderKaTeX(latex) {
+            const div = document.createElement('div');
+            katex.render(latex, div);
+            return div.innerHTML;
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = '#2a2a2a';
+            ctx.lineWidth = 1;
+            
+            const gridSpacing = scale;
+            
+            for (let x = offsetX % gridSpacing; x < canvas.width; x += gridSpacing) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            for (let y = offsetY % gridSpacing; y < canvas.height; y += gridSpacing) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawAxes() {
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1;
+            
+            ctx.beginPath();
+            ctx.moveTo(0, offsetY);
+            ctx.lineTo(canvas.width, offsetY);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(offsetX, 0);
+            ctx.lineTo(offsetX, canvas.height);
+            ctx.stroke();
+            
+            // Determine font size based on scale
+            const fontSize = Math.max(10, Math.min(14, scale / 4));
+            
+            for (let i = Math.floor(-offsetX / scale); i <= Math.ceil((canvas.width - offsetX) / scale); i++) {
+                if (i === 0) continue;
+                const x = offsetX + i * scale;
+                if (x >= 20 && x <= canvas.width - 20) {
+                    ctx.strokeStyle = '#444';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(x, offsetY - 5);
+                    ctx.lineTo(x, offsetY + 5);
+                    ctx.stroke();
+                    
+                    // Draw text directly on canvas
+                    ctx.fillStyle = '#666';
+                    ctx.font = `${fontSize}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(i.toString(), x, offsetY + 8);
+                }
+            }
+            
+            for (let i = Math.floor(-offsetY / scale); i <= Math.ceil((canvas.height - offsetY) / scale); i++) {
+                if (i === 0) continue;
+                const y = offsetY - i * scale;
+                if (y >= 20 && y <= canvas.height - 20) {
+                    ctx.strokeStyle = '#444';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(offsetX - 5, y);
+                    ctx.lineTo(offsetX + 5, y);
+                    ctx.stroke();
+                    
+                    // Draw text directly on canvas
+                    ctx.fillStyle = '#666';
+                    ctx.font = `${fontSize}px Arial`;
+                    ctx.textAlign = 'right';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(i + 'i', offsetX - 8, y);
+                }
+            }
+            
+            // Axis labels
+            ctx.fillStyle = '#888';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('Re', canvas.width - 30, offsetY + 5);
+            ctx.textAlign = 'center';
+            ctx.fillText('Im', offsetX + 5, 20);
+        }
+
+        function drawConvergenceRegion() {
+            // Convergence region removed for numerical series demo
+        }
+
+        function drawVectors() {
+            const terms = computeSeries();
+            if (!terms) return;
+            
+            let current = { re: 0, im: 0 };
+            
+            ctx.strokeStyle = '#4da6ff';
+            ctx.lineWidth = 2;
+            
+            for (let i = 0; i < terms.length; i++) {
+                const next = complexAdd(current, terms[i]);
+                const startPos = toScreen(current.re, current.im);
+                const endPos = toScreen(next.re, next.im);
+                
+                ctx.beginPath();
+                ctx.moveTo(startPos.x, startPos.y);
+                ctx.lineTo(endPos.x, endPos.y);
+                ctx.stroke();
+                
+                const angle = Math.atan2(endPos.y - startPos.y, endPos.x - startPos.x);
+                const headLen = 10;
+                ctx.beginPath();
+                ctx.moveTo(endPos.x, endPos.y);
+                ctx.lineTo(
+                    endPos.x - headLen * Math.cos(angle - Math.PI / 6),
+                    endPos.y - headLen * Math.sin(angle - Math.PI / 6)
+                );
+                ctx.moveTo(endPos.x, endPos.y);
+                ctx.lineTo(
+                    endPos.x - headLen * Math.cos(angle + Math.PI / 6),
+                    endPos.y - headLen * Math.sin(angle + Math.PI / 6)
+                );
+                ctx.stroke();
+                
+                current = next;
+            }
+        }
+
+        function drawExpansionPoint() {
+            const pos = toScreen(expansionPoint.re, expansionPoint.im);
+            
+            ctx.fillStyle = '#ff6b6b';
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            labelsContainer.innerHTML = '';
+            
+            const reStr = expansionPoint.re.toFixed(2);
+            const imVal = expansionPoint.im;
+            const imStr = Math.abs(imVal).toFixed(2);
+            const sign = imVal >= 0 ? '+' : '-';
+            
+            const label = document.createElement('div');
+            label.className = 'katex-label';
+            label.style.left = (pos.x + 12) + 'px';
+            label.style.top = (pos.y - 25) + 'px';
+            label.innerHTML = renderKaTeX(`z_0 = ${reStr} ${sign} ${imStr}i`);
+            labelsContainer.appendChild(label);
+        }
+
+        function drawConvergencePoint() {
+            const terms = computeSeries();
+            if (!terms) return;
+            
+            // Calculate the sum of all terms
+            let sum = { re: 0, im: 0 };
+            for (let i = 0; i < terms.length; i++) {
+                sum = complexAdd(sum, terms[i]);
+            }
+            
+            const pos = toScreen(sum.re, sum.im);
+            
+            // Draw the convergence point
+            ctx.fillStyle = '#4ade80';
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Add label
+            const reStr = sum.re.toFixed(2);
+            const imVal = sum.im;
+            const imStr = Math.abs(imVal).toFixed(2);
+            const sign = imVal >= 0 ? '+' : '-';
+            
+            const label = document.createElement('div');
+            label.className = 'katex-label';
+            label.style.left = (pos.x + 12) + 'px';
+            label.style.top = (pos.y + 10) + 'px';
+            label.innerHTML = renderKaTeX(`S_n = ${reStr} ${sign} ${imStr}i`);
+            labelsContainer.appendChild(label);
+        }
+
+        function draw() {
+            ctx.fillStyle = '#191919';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            drawGrid();
+            drawAxes();
+            drawVectors();
+            drawExpansionPoint();
+            drawConvergencePoint();
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const expPos = toScreen(expansionPoint.re, expansionPoint.im);
+            const dist = Math.sqrt((x - expPos.x) ** 2 + (y - expPos.y) ** 2);
+            
+            if (dist < 15) {
+                isDragging = true;
+                dragPoint = 'expansion';
+                canvas.style.cursor = 'move';
+            } else {
+                isPanning = true;
+                lastPanX = x;
+                lastPanY = y;
+                canvas.style.cursor = 'grabbing';
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (isPanning) {
+                const dx = x - lastPanX;
+                const dy = y - lastPanY;
+                offsetX += dx;
+                offsetY += dy;
+                lastPanX = x;
+                lastPanY = y;
+                draw();
+                return;
+            }
+            
+            if (isDragging && dragPoint === 'expansion') {
+                const pos = fromScreen(x, y);
+                expansionPoint = pos;
+                draw();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            isPanning = false;
+            dragPoint = null;
+            canvas.style.cursor = 'crosshair';
+        });
+
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const worldPos = fromScreen(x, y);
+            
+            const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+            scale *= zoomFactor;
+            
+            if (scale < 5) scale = 5;
+            if (scale > 500) scale = 500;
+            
+            const newScreenPos = toScreen(worldPos.re, worldPos.im);
+            offsetX += x - newScreenPos.x;
+            offsetY += y - newScreenPos.y;
+            
+            draw();
+        });
+
+        let touchStartDist = 0;
+        let lastTouches = [];
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            
+            if (e.touches.length === 2) {
+                isPanning = true;
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                touchStartDist = Math.sqrt(
+                    (touch2.clientX - touch1.clientX) ** 2 +
+                    (touch2.clientY - touch1.clientY) ** 2
+                );
+                lastTouches = Array.from(e.touches);
+            } else if (e.touches.length === 1) {
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                
+                const expPos = toScreen(expansionPoint.re, expansionPoint.im);
+                const dist = Math.sqrt((x - expPos.x) ** 2 + (y - expPos.y) ** 2);
+                
+                if (dist < 20) {
+                    isDragging = true;
+                    dragPoint = 'expansion';
+                }
+            }
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            
+            if (e.touches.length === 2 && isPanning) {
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                
+                const dist = Math.sqrt(
+                    (touch2.clientX - touch1.clientX) ** 2 +
+                    (touch2.clientY - touch1.clientY) ** 2
+                );
+                
+                if (touchStartDist > 0) {
+                    const zoomFactor = dist / touchStartDist;
+                    const midX = (touch1.clientX + touch2.clientX) / 2;
+                    const midY = (touch1.clientY + touch2.clientY) / 2;
+                    const rect = canvas.getBoundingClientRect();
+                    const x = midX - rect.left;
+                    const y = midY - rect.top;
+                    const worldPos = fromScreen(x, y);
+                    
+                    scale *= zoomFactor;
+                    if (scale < 5) scale = 5;
+                    if (scale > 500) scale = 500;
+                    
+                    const newScreenPos = toScreen(worldPos.re, worldPos.im);
+                    offsetX += x - newScreenPos.x;
+                    offsetY += y - newScreenPos.y;
+                }
+                
+                if (lastTouches.length === 2) {
+                    const lastMidX = (lastTouches[0].clientX + lastTouches[1].clientX) / 2;
+                    const lastMidY = (lastTouches[0].clientY + lastTouches[1].clientY) / 2;
+                    const midX = (touch1.clientX + touch2.clientX) / 2;
+                    const midY = (touch1.clientY + touch2.clientY) / 2;
+                    
+                    offsetX += midX - lastMidX;
+                    offsetY += midY - lastMidY;
+                }
+                
+                touchStartDist = dist;
+                lastTouches = Array.from(e.touches);
+                draw();
+            } else if (e.touches.length === 1 && isDragging) {
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                const pos = fromScreen(x, y);
+                
+                if (dragPoint === 'expansion') {
+                    expansionPoint = pos;
+                    draw();
+                }
+            }
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (e.touches.length === 0) {
+                isDragging = false;
+                isPanning = false;
+                dragPoint = null;
+                touchStartDist = 0;
+                lastTouches = [];
+            }
+        });
+
+        seriesInput.addEventListener('input', draw);
+        
+        startNInput.addEventListener('input', draw);
+        
+        termsSlider.addEventListener('input', (e) => {
+            termsValue.textContent = e.target.value;
+            draw();
+        });
+
+        toggleButton.addEventListener('click', () => {
+            controlsPanel.classList.toggle('hidden');
+            
+            if (controlsPanel.classList.contains('hidden')) {
+                toggleButton.textContent = 'Show Controls';
+            } else {
+                toggleButton.textContent = 'Hide Controls';
+            }
+        });
+
+        draw();
+    </script>
+</body>
+</html>
