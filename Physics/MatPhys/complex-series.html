@@ -136,7 +136,7 @@
         }
         
         /* Desktop layout */
-        @media (min-width: 301px) {
+        @media (min-width: 501px) {
             #controls {
                 display: flex;
                 gap: 20px;
@@ -185,18 +185,108 @@
             }
         }
         
-        /* Mobile layout */
-        @media (max-width: 300px) {
+        /* Mobile layout: remove floating window.  Slider becomes a vertical rail on the right;
+           text inputs sit in a compact bottom bar (labels above inputs). */
+        @media (max-width: 500px) {
+            /* Make the controls container full-width and fixed to bottom (transparent wrapper)
+               so the grouped control cards can be rendered as boxed items. */
             #controls {
-                bottom: 60px;
-                max-height: calc(70vh - 60px);
-            }
-            #controls.hidden {
-                transform: translateY(calc(100% - 49px));
-            }
-            #toggleButton {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: transparent;
+                padding: 0;
+                margin: 0;
+                border: none;
+                box-shadow: none;
+                border-radius: 0;
                 display: block;
+                pointer-events: auto;
+                z-index: 10000;
             }
+
+            /* The main content forms a bottom bar —
+               make background transparent so only individual textbox panels show. */
+            #controlsContent {
+                position: fixed;
+                left: 8px;
+                right: 8px;
+                bottom: 8px;
+                display: flex;
+                gap: 12px;
+                align-items: flex-end;
+                justify-content: center;
+                padding: 10px;
+                box-sizing: border-box;
+                background: transparent;
+                border-radius: 10px;
+                backdrop-filter: none;
+                border: none;
+            }
+
+            /* Hide title and long hints to keep bar compact */
+            h2 { display: none; }
+            .controls-hint { display: none; }
+
+            /* Series textbox and starting-index appear in the bottom bar as compact cards */
+            .control-group.series,
+            .control-group:not(.terms) {
+                flex: 1 1 auto;
+                min-width: 120px;
+                max-width: calc(100% - 84px);
+                background: rgba(40,40,40,0.95);
+                padding: 10px;
+                border-radius: 8px;
+                box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+                border: 1px solid rgba(255,255,255,0.06);
+            }
+
+            .control-group.series textarea { min-height: 44px; }
+
+            /* Slider sits as a horizontal control fixed at the top center, separate from boxes */
+            .control-group.terms {
+                position: fixed;
+                top: 12px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: auto;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                background: transparent;
+                border: none;
+                box-shadow: none;
+                z-index: 10001;
+            }
+
+            /* Label sits above the horizontal range */
+            .control-group.terms label {
+                display: block;
+                margin-bottom: 6px;
+                font-size: 12px;
+                color: #ccc;
+                text-align: center;
+                background: transparent;
+            }
+
+            /* Horizontal range for top bar */
+            .control-group.terms input[type="range"] {
+                transform: none;
+                width: min(86vw, 420px);
+                height: 32px;
+                margin: 0;
+                background: transparent;
+                -webkit-appearance: none;
+            }
+
+            .control-group.terms input[type="range"]::-webkit-slider-runnable-track { background: #4a5568; height: 6px; border-radius: 4px; }
+            .control-group.terms input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #4da6ff; border-radius: 50%; margin-top: -6px; }
+
+            /* Hide the toggle button on mobile since controls are explicit */
+            #toggleButton { display: none !important; }
         }
     </style>
 </head>
