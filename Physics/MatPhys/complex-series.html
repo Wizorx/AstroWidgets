@@ -162,8 +162,8 @@
             <h2>Complex Series Visualizer</h2>
         
         <label>Series Expression (function of n):</label>
-        <textarea id="seriesInput" placeholder="e.g., z0^n / factorial(n)">z0^n / factorial(n)</textarea>
-        <div class="info">Use: z0, n, exp(), sin(), cos(), log(), sqrt(), ^, *, /, +, -, factorial()</div>
+        <textarea id="seriesInput" placeholder="e.g., z^n / factorial(n)">z^n / factorial(n)</textarea>
+        <div class="info">Use: z, n, exp(), sin(), cos(), log(), sqrt(), ^, *, /, +, -, factorial()</div>
         <div class="error" id="seriesError"></div>
         
         <label>Starting index (first n):</label>
@@ -354,9 +354,10 @@
                     if (str[pos.i] === ')') pos.i++;
                     return complexSqrt(arg);
                 }
-                
-                if (str.substr(pos.i, 2) === 'z0') {
-                    pos.i += 2;
+ 
+ 
+                if (str[pos.i] === 'z') {
+                    pos.i++;
                     return z0;
                 }
                 
@@ -646,7 +647,7 @@
             label.className = 'katex-label';
             label.style.left = (pos.x + 12) + 'px';
             label.style.top = (pos.y - 25) + 'px';
-            label.innerHTML = renderKaTeX(`z_0 = ${reStr} ${sign} ${imStr}i`);
+            label.innerHTML = renderKaTeX(`z = ${reStr} ${sign} ${imStr}i`);
             labelsContainer.appendChild(label);
         }
 
@@ -682,7 +683,7 @@
             label.className = 'katex-label';
             label.style.left = (pos.x + 12) + 'px';
             label.style.top = (pos.y + 10) + 'px';
-            label.innerHTML = renderKaTeX(`S_n = ${reStr} ${sign} ${imStr}i`);
+            label.innerHTML = renderKaTeX(`S \\approx ${reStr} ${sign} ${imStr}i`);
             labelsContainer.appendChild(label);
         }
 
