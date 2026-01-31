@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Interactive 3D Laplace Transform - Analytic</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            background-color: #191919;
+            position: fixed; 
+            width: 100%;
+            height: 100%;
+        }
+        
+        #canvas-container {
+            width: 100vw;
+            height: 100%; 
+            position: relative;
+            display: flex;
+            touch-action: none; 
+        }
+        
+        .viewport {
+            position: relative;
+            flex: 1;
+            touch-action: none;
+            overflow: hidden; 
+        }
+
+        @media (max-width: 768px) {
+            #canvas-container {
+                flex-direction: column;
+            }
+            #canvas-container > .viewport {
+                min-height: 0;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            #canvas-container {
+                flex-direction: row;
+            }
+            #canvas-container > .viewport {
+                height: 100%; 
+            }
+        }
+        
+        .viewport canvas {
+            touch-action: none;
+            display: block; 
+        }
+        
+        .viewport-label {
+            position: absolute;
+            color: white;
+            font-size: 14px; 
+            font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 6px 12px;
+            border-radius: 4px;
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        @media (min-width: 769px) {
+            .viewport-label {
+                top: 10px;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            #laplace-viewport .viewport-label {
+                top: 8px;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+            #s-plane-viewport .viewport-label {
+                bottom: 8px; 
+                left: 50%;
+                transform: translateX(-50%);
+            }
+        }
+        
+        .divider {
+            background-color: #444;
+            z-index: 1;
+        }
+        
+        @media (min-width: 769px) {
+            .divider {
+                width: 2px;
+                height: 100%;
+                flex-shrink: 0;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .divider {
+                width: 100%;
+                height: 2px;
+                flex-shrink: 0;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            #hud {
+                position: absolute;
+                bottom: 20px;
+                right: 20px;
+                width: 650px;
+                max-width: calc(100vw - 40px);
+                background-color: rgba(0, 0, 0, 0.8);
+                padding: 12px;
+                border-radius: 8px;
+                color: white;
+                font-size: 14px;
+                z-index: 10;
+                transition: opacity 0.3s, transform 0.3s;
+            }
+            
+            #hud.hidden {
+                opacity: 0;
+                transform: translateY(20px);
+                pointer-events: none;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            #hud {
+                display: none;
+            }
+        }
+        
+        #mobile-equation-container {
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            #mobile-equation-container {
+                display: block;
+                position: absolute;
+                top: 5px;
+                left: 50%;
+                transform: translateX(-50%);
+                background-color: rgba(0, 0, 0, 0.85);
+                padding: 4px 8px;
+                border-radius: 4px;
+                color: white;
+                z-index: 20;
+                pointer-events: none;
+                max-width: calc(100vw - 80px);
+                text-align: center;
+                overflow: hidden; 
+            }
+            
+            #mobile-equation {
+                font-size: 11px;
+                white-space: nowrap; 
+            }
+        }
+        
+        #mobile-bottom-controls {
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            #mobile-bottom-controls {
+                display: flex;
+                position: absolute;
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                gap: 8px;
+                z-index: 15;
+                align-items: flex-end;
+            }
+            
+            #hud-toggle-mobile {
+                background-color: rgba(0, 0, 0, 0.8);
+                color: white;
+                border: none;
+                padding: 10px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            
+            #mobile-function-panel {
+                flex: 1;
+                background-color: rgba(0, 0, 0, 0.8);
+                padding: 8px;
+                border-radius: 4px;
+                transition: opacity 0.3s, transform 0.3s;
+            }
+            
+            #mobile-function-panel.hidden {
+                opacity: 0;
+                transform: translateY(10px);
+                pointer-events: none;
+            }
+            
+            #mobile-function-panel label {
+                display: block;
+                font-size: 11px;
+                margin-bottom: 4px;
+                color: white;
+            }
+            
+            #function-select-mobile {
+                width: 100%;
+                padding: 6px;
+                background-color: #1f2937;
+                color: white;
+                border: 1px solid #374151;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            #mobile-equation-container,
+            #mobile-bottom-controls {
+                display: none;
+            }
+            
+            #hud-toggle {
+                position: absolute;
+                bottom: 20px;
+                left: 20px;
+                background-color: rgba(0, 0, 0, 0.6);
+                color: white;
+                border: none;
+                padding: 10px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                z-index: 10;
+                font-size: 14px;
+            }
+            
+            #hud-toggle:hover {
+                background-color: rgba(0, 0, 0, 0.8);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            #hud-toggle {
+                display: none;
+            }
+        }
+        
+        #equation-container {
+            margin-bottom: 12px;
+            text-align: center;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+        
+        #equation {
+            color: white;
+            font-size: 18px;
+            white-space: nowrap; 
+        }
+        
+        .control-group {
+            margin-bottom: 12px;
+        }
+        
+        label {
+            display: block;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        select {
+            width: 100%;
+            padding: 6px 8px;
+            background-color: #1f2937;
+            color: white;
+            border: 1px solid #374151;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        select option {
+            background-color: #1f2937;
+            color: white;
+        }
+
+        input[type="number"] {
+            padding: 4px 8px;
+            background-color: #1f2937;
+            color: white;
+            border: 1px solid #374151;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <div class="viewport" id="s-plane-viewport">
+            <div class="viewport-label">Complex Frequency (s-plane)</div>
+        </div>
+        <div class="divider"></div>
+        <div class="viewport" id="laplace-viewport">
+            <div class="viewport-label">Laplace Transform</div>
+        </div>
+    </div>
+    
+    <div id="mobile-equation-container">
+        <div id="mobile-equation"></div>
+    </div>
+    
+    <div id="mobile-bottom-controls">
+        <button id="hud-toggle-mobile">Toggle</button>
+        <div id="mobile-function-panel">
+            <label for="function-select-mobile">Function f(t):</label>
+            <select id="function-select-mobile">
+                <option value="exp">e^(-at) [a=1]</option>
+                <option value="constant">1 (unit step)</option>
+                <option value="t">t</option>
+                <option value="t2">t²</option>
+                <option value="sin" selected>sin(ωt) [ω=2π]</option>
+                <option value="cos">cos(ωt) [ω=2π]</option>
+                <option value="exp_sin">e^(-at)sin(ωt) [a=0.5, ω=2π]</option>
+                <option value="exp_cos">e^(-at)cos(ωt) [a=0.5, ω=2π]</option>
+            </select>
+            <div style="display: flex; gap: 4px; align-items: center; margin-top: 8px;">
+                <label style="margin: 0; font-size: 11px;">Range:</label>
+                <input type="number" id="t-min-mobile" value="0" step="0.5" style="width: 50px; padding: 4px;">
+                <span style="font-size: 11px;">to</span>
+                <input type="number" id="t-max-mobile" value="5" step="0.5" style="width: 50px; padding: 4px;">
+            </div>
+        </div>
+    </div>
+    
+    <button id="hud-toggle">Toggle HUD</button>
+    
+    <div id="hud">
+        <div id="equation-container">
+            <div id="equation"></div>
+        </div>
+        
+        <div class="control-group">
+            <label for="function-select">Function f(t):</label>
+            <select id="function-select">
+                <option value="exp">e^(-at) [a=1]</option>
+                <option value="constant">1 (unit step)</option>
+                <option value="t">t</option>
+                <option value="t2">t²</option>
+                <option value="sin" selected>sin(ωt) [ω=2π]</option>
+                <option value="cos">cos(ωt) [ω=2π]</option>
+                <option value="exp_sin">e^(-at)sin(ωt) [a=0.5, ω=2π]</option>
+                <option value="exp_cos">e^(-at)cos(ωt) [a=0.5, ω=2π]</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Display range for f(t):</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="number" id="t-min" value="0" step="0.5" style="width: 60px;">
+                <span style="font-size: 12px;">to</span>
+                <input type="number" id="t-max" value="5" step="0.5" style="width: 60px;">
+            </div>
+        </div>
+        
+        <div class="help-text">
+            Left: Drag to pan | Scroll/Pinch to zoom<br>
+            Right: Drag to rotate | Scroll/Pinch to zoom
+        </div>
+    </div>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let sceneSPlane, sceneLaplace, cameraSPlane, cameraLaplace, rendererSPlane, rendererLaplace;
+        let sReal = 1;  // σ (real part of s)
+        let sImag = 0;  // ω (imaginary part of s)
+        let currentFunction = 'sin';
+        let draggableDot = null;
+        let isDraggingDot = false;
+        let tMin = 0;
+        let tMax = 5;
+        let lastComputedResult = { real: 0, imag: 0 }; // Store result from visualization
+        
+        const controlsSPlane = {
+            isDragging: false,
+            previousMousePosition: { x: 0, y: 0 },
+            panX: 0,
+            panY: 0,
+            zoom: 1,
+            isPinching: false,
+            previousPinchDistance: 0
+        };
+        
+        const controlsLaplace = {
+            isDragging: false,
+            previousMousePosition: { x: 0, y: 0 },
+            theta: -Math.PI / 0.75,
+            phi: Math.PI / 3,
+            zoom: 1,
+            isPinching: false,
+            previousPinchDistance: 0
+        };
+
+        // Laplace transform pairs from tables
+        const laplacePairs = {
+            exp: {
+                name: 'e^{-at}',
+                params: { a: 1 },
+                timeFunc: (t, params) => Math.exp(-params.a * t),
+                transform: (s, params) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const denom = (sr + params.a) * (sr + params.a) + si * si;
+                    return {
+                        real: (sr + params.a) / denom,
+                        imag: -si / denom
+                    };
+                },
+                latex: (params) => `\\frac{1}{s + a}`
+            },
+            constant: {
+                name: '1',
+                params: {},
+                timeFunc: (t, params) => 1,
+                transform: (s, params) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const denom = sr * sr + si * si;
+                    if (denom < 1e-15) {
+                        return { real: NaN, imag: NaN, divergent: true };
+                    }
+                    return {
+                        real: sr / denom,
+                        imag: -si / denom
+                    };
+                },
+                latex: (params) => `\\frac{1}{s}`
+            },
+            t: {
+                name: 't',
+                params: {},
+                timeFunc: (t, params) => t,
+                transform: (s, params) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const denom = (sr * sr + si * si) * (sr * sr + si * si);
+                    if (denom < 1e-15) {
+                        return { real: NaN, imag: NaN, divergent: true };
+                    }
+                    return {
+                        real: (sr * sr - si * si) / denom,
+                        imag: -2 * sr * si / denom
+                    };
+                },
+                latex: (params) => `\\frac{1}{s^2}`
+            },
+            t2: {
+                name: 't^2',
+                params: {},
+                timeFunc: (t, params) => t * t,
+                transform: (s, params) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const s2 = sr * sr + si * si;
+                    // For very small s (near origin), return a very large but finite value
+                    if (s2 < 1e-10) {
+                        const angle = Math.atan2(si, sr);
+                        const largeMag = 1e6;
+                        return { 
+                            real: largeMag * Math.cos(-3 * angle), 
+                            imag: largeMag * Math.sin(-3 * angle),
+                            divergent: false
+                        };
+                    }
+                    const denom = s2 * s2 * s2;
+                    const numerReal = 2 * sr * (sr * sr - 3 * si * si);
+                    const numerImag = -2 * si * (3 * sr * sr - si * si);
+                    return {
+                        real: numerReal / denom,
+                        imag: numerImag / denom,
+                        divergent: false
+                    };
+                },
+                latex: (params) => `\\frac{2}{s^3}`
+            },
+            sin: {
+                name: '\\sin(\\omega t)',
+                params: { omega: 2 * Math.PI },
+                timeFunc: (t, params) => Math.sin(params.omega * t),
+                transform: (s, params) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const w = params.omega;
+                    const denom = (sr * sr + (si - w) * (si - w)) * (sr * sr + (si + w) * (si + w));
+                    const numerReal = 2 * w * sr;
+                    const numerImag = w * w - sr * sr - si * si;
+                    const commonFactor = 1 / denom;
+                    return {
+                        real: numerReal * commonFactor,
+                        imag: numerImag * commonFactor
+                    };
+                },
+                latex: (params) => `\\frac{\\omega}{s^2 + \\omega^2}`
+            },
+            cos: {
+                name: '\\cos(\\omega t)',
+                params: { omega: 2 * Math.PI },
+                timeFunc: (t, params) => Math.cos(params.omega * t),
+                transform: (s, params) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const w = params.omega;
+                    const denom = (sr * sr + si * si) * (sr * sr + si * si) + 2 * w * w * (sr * sr - si * si) + w * w * w * w;
+                    const numerReal = sr * (sr * sr + si * si + w * w);
+                    const numerImag = -si * (sr * sr + si * si + w * w);
+                    return {
+                        real: numerReal / denom,
+                        imag: numerImag / denom
+                    };
+                },
+                latex: (params) => `\\frac{s}{s^2 + \\omega^2}`
+            },
+            exp_sin: {
+                name: 'e^{-at}\\sin(\\omega t)',
+                params: { a: 0.5, omega: 2 * Math.PI },
+                timeFunc: (t, params) => Math.exp(-params.a * t) * Math.sin(params.omega * t),
+                transform: (s, params) => {
+                    const sr = s.real + params.a;
+                    const si = s.imag;
+                    const w = params.omega;
+                    const denom = sr * sr * sr * sr + 2 * sr * sr * si * si + si * si * si * si + 
+                                  2 * w * w * (sr * sr - si * si) + w * w * w * w;
+                    const numerReal = 2 * w * sr;
+                    const numerImag = w * (w * w - sr * sr - si * si);
+                    return {
+                        real: numerReal / denom,
+                        imag: numerImag / denom
+                    };
+                },
+                latex: (params) => `\\frac{\\omega}{(s + a)^2 + \\omega^2}`
+            },
+            exp_cos: {
+                name: 'e^{-at}\\cos(\\omega t)',
+                params: { a: 0.5, omega: 2 * Math.PI },
+                timeFunc: (t, params) => Math.exp(-params.a * t) * Math.cos(params.omega * t),
+                transform: (s, params) => {
+                    const sr = s.real + params.a;
+                    const si = s.imag;
+                    const w = params.omega;
+                    const denom = sr * sr * sr * sr + 2 * sr * sr * si * si + si * si * si * si + 
+                                  2 * w * w * (sr * sr - si * si) + w * w * w * w;
+                    const numerReal = sr * (sr * sr + si * si + w * w);
+                    const numerImag = -si * (sr * sr + si * si + w * w);
+                    return {
+                        real: numerReal / denom,
+                        imag: numerImag / denom
+                    };
+                },
+                latex: (params) => `\\frac{s + a}{(s + a)^2 + \\omega^2}`
+            }
+        };
+
+        function evaluateTransform(sr, si) {
+            const pair = laplacePairs[currentFunction];
+            const result = pair.transform({ real: sr, imag: si }, pair.params);
+            
+            // Check for NaN or Infinity
+            if (!isFinite(result.real) || !isFinite(result.imag)) {
+                return { real: NaN, imag: NaN, divergent: true };
+            }
+            
+            // Check for very large values (near poles)
+            const magnitude = Math.sqrt(result.real * result.real + result.imag * result.imag);
+            if (magnitude > 1e6) {
+                return { real: NaN, imag: NaN, divergent: true };
+            }
+            
+            return { real: result.real, imag: result.imag, divergent: false };
+        }
+
+        function evaluateTimeFunction(t) {
+            const pair = laplacePairs[currentFunction];
+            return pair.timeFunc(t, pair.params);
+        }
+
+        function init() {
+            sceneSPlane = new THREE.Scene();
+            sceneSPlane.background = new THREE.Color(0x191919);
+            
+            sceneLaplace = new THREE.Scene();
+            sceneLaplace.background = new THREE.Color(0x191919);
+
+            setupSPlaneViewport();
+            setupLaplaceViewport();
+
+            createSPlane();
+            createLaplaceDomain();
+
+            setupEventListeners();
+
+            updateVisualization();
+            renderEquation();
+
+            animate();
+        }
+
+        function setupSPlaneViewport() {
+            const container = document.getElementById('s-plane-viewport');
+            const aspect = container.clientWidth / container.clientHeight;
+            const frustumSize = 10;
+            
+            cameraSPlane = new THREE.OrthographicCamera(
+                frustumSize * aspect / -2,
+                frustumSize * aspect / 2,
+                frustumSize / 2,
+                frustumSize / -2,
+                0.1,
+                1000
+            );
+            
+            cameraSPlane.position.set(0, 0, 10);
+            cameraSPlane.lookAt(0, 0, 0);
+            
+            rendererSPlane = new THREE.WebGLRenderer({ antialias: true });
+            rendererSPlane.setSize(container.clientWidth, container.clientHeight);
+            rendererSPlane.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(rendererSPlane.domElement);
+        }
+
+        function setupLaplaceViewport() {
+            const container = document.getElementById('laplace-viewport');
+            const aspect = container.clientWidth / container.clientHeight;
+            const frustumSize = 15;
+            
+            cameraLaplace = new THREE.OrthographicCamera(
+                frustumSize * aspect / -2,
+                frustumSize * aspect / 2,
+                frustumSize / 2,
+                frustumSize / -2,
+                0.1,
+                1000
+            );
+            
+            rendererLaplace = new THREE.WebGLRenderer({ antialias: true });
+            rendererLaplace.setSize(container.clientWidth, container.clientHeight);
+            rendererLaplace.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(rendererLaplace.domElement);
+            
+            updateCameraPosition();
+        }
+
+        function createTextSprite(text, scale = 2) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 128;
+            
+            context.fillStyle = 'white';
+            context.font = 'Bold 64px Arial';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, 128, 64);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ 
+                map: texture,
+                depthTest: true,
+                depthWrite: false
+            });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.scale.set(scale, scale / 2, 1);
+            sprite.renderOrder = -1;
+            
+            return sprite;
+        }
+
+        function createSPlane() {
+            // Background plane - larger to reduce blank space when zoomed out
+            const planeGeom = new THREE.PlaneGeometry(20, 20);
+            const planeMat = new THREE.MeshBasicMaterial({ 
+                color: 0x191919,
+                transparent: false, 
+                side: THREE.DoubleSide
+            });
+            const plane = new THREE.Mesh(planeGeom, planeMat);
+            sceneSPlane.add(plane);
+            
+            // Create grid lines only at integer positions
+            const gridMaterial = new THREE.LineBasicMaterial({ color: 0x444444 });
+            
+            for (let i = -10; i <= 10; i++) {
+                // Vertical lines (parallel to imaginary axis)
+                const vGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(i, -10, 0),
+                    new THREE.Vector3(i, 10, 0)
+                ]);
+                const vLine = new THREE.Line(vGeometry, gridMaterial);
+                sceneSPlane.add(vLine);
+                
+                // Horizontal lines (parallel to real axis)
+                const hGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(-10, i, 0),
+                    new THREE.Vector3(10, i, 0)
+                ]);
+                const hLine = new THREE.Line(hGeometry, gridMaterial);
+                sceneSPlane.add(hLine);
+            }
+            
+            // Real axis (σ) - full length in both directions
+            const realAxisMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+            const realAxisGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-10, 0, 0.01),
+                new THREE.Vector3(10, 0, 0.01)
+            ]);
+            const realAxis = new THREE.Line(realAxisGeometry, realAxisMaterial);
+            sceneSPlane.add(realAxis);
+            
+            // Real axis arrow
+            const realArrow = new THREE.ArrowHelper(
+                new THREE.Vector3(1, 0, 0),
+                new THREE.Vector3(9.6, 0, 0.01),
+                0.4,
+                0xffffff,
+                0.2,
+                0.15
+            );
+            sceneSPlane.add(realArrow);
+            
+            const realLabel = createTextSprite('σ', 0.8);
+            realLabel.position.set(10.5, 0, 0.01);
+            sceneSPlane.add(realLabel);
+            
+            // Imaginary axis (iω) - full length in both directions
+            const imagAxisMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+            const imagAxisGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, -10, 0.01),
+                new THREE.Vector3(0, 10, 0.01)
+            ]);
+            const imagAxis = new THREE.Line(imagAxisGeometry, imagAxisMaterial);
+            sceneSPlane.add(imagAxis);
+            
+            // Imaginary axis arrow
+            const imagArrow = new THREE.ArrowHelper(
+                new THREE.Vector3(0, 1, 0),
+                new THREE.Vector3(0, 9.6, 0.01),
+                0.4,
+                0xffffff,
+                0.2,
+                0.15
+            );
+            sceneSPlane.add(imagArrow);
+            
+            const imagLabel = createTextSprite('iω', 0.8);
+            imagLabel.position.set(0, 10.5, 0.01);
+            sceneSPlane.add(imagLabel);
+            
+            // Add tick marks and labels
+            const tickSize = 0.15;
+            const tickMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+            
+            for (let i = -10; i <= 10; i++) {
+                if (i !== 0) {
+                    // Real axis ticks
+                    const realTickGeometry = new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(i, -tickSize, 0.01),
+                        new THREE.Vector3(i, tickSize, 0.01)
+                    ]);
+                    const realTick = new THREE.Line(realTickGeometry, tickMaterial);
+                    sceneSPlane.add(realTick);
+                    
+                    const realNumLabel = createTextSprite(i.toString(), 0.5);
+                    realNumLabel.position.set(i, -0.5, 0.01);
+                    sceneSPlane.add(realNumLabel);
+                    
+                    // Imaginary axis ticks with 'i' suffix
+                    const imagTickGeometry = new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(-tickSize, i, 0.01),
+                        new THREE.Vector3(tickSize, i, 0.01)
+                    ]);
+                    const imagTick = new THREE.Line(imagTickGeometry, tickMaterial);
+                    sceneSPlane.add(imagTick);
+                    
+                    const imagNumLabel = createTextSprite(i.toString() + 'i', 0.5);
+                    imagNumLabel.position.set(-0.6, i, 0.01);
+                    sceneSPlane.add(imagNumLabel);
+                }
+            }
+            
+            // Origin label
+            const originLabel = createTextSprite('0', 0.5);
+            originLabel.position.set(-0.4, -0.4, 0.01);
+            sceneSPlane.add(originLabel);
+            
+            // Create draggable dot
+            const dotGeom = new THREE.SphereGeometry(0.12, 16, 16);
+            const dotMat = new THREE.MeshBasicMaterial({ color: 0xffa500 });
+            draggableDot = new THREE.Mesh(dotGeom, dotMat);
+            draggableDot.position.set(sReal, sImag, 0.02);
+            sceneSPlane.add(draggableDot);
+        }
+
+        function createLaplaceDomain() {
+            const size = 10;
+            const divisions = 10;
+            
+            // Complex plane grid at t=0
+            const gridHelper1 = new THREE.GridHelper(size, divisions, 0x444444, 0x444444);
+            gridHelper1.rotation.x = Math.PI / 2;
+            gridHelper1.position.z = 0;
+            sceneLaplace.add(gridHelper1);
+            
+            const planeGeom1 = new THREE.PlaneGeometry(10, 10);
+            const planeMat1 = new THREE.MeshBasicMaterial({ 
+                color: 0x1a3a4a,
+                transparent: true, 
+                opacity: 0.5,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const plane1 = new THREE.Mesh(planeGeom1, planeMat1);
+            plane1.position.z = 0;
+            plane1.renderOrder = -1;
+            sceneLaplace.add(plane1);
+            
+            // t-Re plane (horizontal, sits on Im = 0)
+            const gridHelper2 = new THREE.GridHelper(size, divisions, 0x444444, 0x444444);
+            gridHelper2.rotation.y = Math.PI / 2;
+            gridHelper2.position.y = 0;
+            sceneLaplace.add(gridHelper2);
+            
+            const planeGeom2 = new THREE.PlaneGeometry(10, 10);
+            const planeMat2 = new THREE.MeshBasicMaterial({ 
+                color: 0x3a2a1a,
+                transparent: true, 
+                opacity: 0.5,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const plane2 = new THREE.Mesh(planeGeom2, planeMat2);
+            plane2.rotation.x = Math.PI / 2;
+            plane2.position.y = 0;
+            plane2.renderOrder = -1;
+            sceneLaplace.add(plane2);
+            
+            createAxes();
+        }
+
+        function createAxes() {
+            const arrowLength = 5;
+            const arrowColor = 0xffffff;
+            
+            // t axis (time) - starting from origin, pointing in positive z direction
+            const tArrow = new THREE.ArrowHelper(
+                new THREE.Vector3(0, 0, 1),
+                new THREE.Vector3(0, 0, 0),
+                arrowLength,
+                arrowColor,
+                0.3,
+                0.2
+            );
+            sceneLaplace.add(tArrow);
+            
+            const tLabel = createTextSprite('t', 2);
+            tLabel.position.set(0, 0, arrowLength + 0.8);
+            sceneLaplace.add(tLabel);
+            
+            // Real axis - at t=0
+            const realArrow = new THREE.ArrowHelper(
+                new THREE.Vector3(1, 0, 0),
+                new THREE.Vector3(0, 0, 0),
+                arrowLength,
+                arrowColor,
+                0.3,
+                0.2
+            );
+            sceneLaplace.add(realArrow);
+            
+            const realLabel = createTextSprite('Re', 2);
+            realLabel.position.set(arrowLength + 0.8, 0, 0);
+            sceneLaplace.add(realLabel);
+            
+            // Imaginary axis - at t=0
+            const imagArrow = new THREE.ArrowHelper(
+                new THREE.Vector3(0, 1, 0),
+                new THREE.Vector3(0, 0, 0),
+                arrowLength,
+                arrowColor,
+                0.3,
+                0.2
+            );
+            sceneLaplace.add(imagArrow);
+            
+            const imagLabel = createTextSprite('Im', 2);
+            imagLabel.position.set(0, arrowLength + 0.8, 0);
+            sceneLaplace.add(imagLabel);
+        }
+
+        function updateCameraPosition() {
+            const radius = 30;
+            const x = radius * Math.sin(controlsLaplace.phi) * Math.cos(controlsLaplace.theta);
+            const y = radius * Math.cos(controlsLaplace.phi);
+            const z = radius * Math.sin(controlsLaplace.phi) * Math.sin(controlsLaplace.theta);
+            
+            cameraLaplace.position.set(x, y, z);
+            cameraLaplace.lookAt(0, 0, 0);
+        }
+
+        function updateCameraZoom() {
+            cameraLaplace.zoom = controlsLaplace.zoom;
+            cameraLaplace.updateProjectionMatrix();
+        }
+
+        function updateSPlaneCameraPosition() {
+            cameraSPlane.position.x = controlsSPlane.panX;
+            cameraSPlane.position.y = controlsSPlane.panY;
+            cameraSPlane.zoom = controlsSPlane.zoom;
+            cameraSPlane.updateProjectionMatrix();
+        }
+
+        function renderEquation() {
+            const equationElement = document.getElementById('equation');
+            const mobileEquationElement = document.getElementById('mobile-equation');
+
+            const pair = laplacePairs[currentFunction];
+            
+            // Format s value
+            const sigmaStr = Math.abs(sReal) < 1e-12 ? '0' : sReal.toFixed(2);
+            const omegaStr = Math.abs(sImag) < 1e-12 ? '0' : Math.abs(sImag).toFixed(2);
+            const omegaSign = sImag >= 0 ? '+' : '-';
+            const sValueStr = `${sigmaStr}${omegaSign}${omegaStr}i`;
+            
+            // Use the result from the windowed computation (stored in lastComputedResult)
+            let fsValueStr;
+            
+            // Check if the result is divergent
+            if (!isFinite(lastComputedResult.real) || !isFinite(lastComputedResult.imag) || 
+                Math.abs(lastComputedResult.real) > 1e8 || Math.abs(lastComputedResult.imag) > 1e8) {
+                fsValueStr = '\\infty';
+            } else {
+                const realStr = Math.abs(lastComputedResult.real) < 1e-12 ? '0' : lastComputedResult.real.toFixed(2);
+                const imagStr = Math.abs(lastComputedResult.imag) < 1e-12 ? '0' : Math.abs(lastComputedResult.imag).toFixed(2);
+                const imagSign = lastComputedResult.imag >= 0 ? '+' : '-';
+                fsValueStr = `${realStr}${imagSign}${imagStr}i`;
+            }
+            
+            // FIXED: Always show integral bounds from 0 to infinity
+            const latex = `\\int_{0}^{\\infty} ${pair.name} \\, e^{-(\\textcolor{#FFA500}{${sValueStr}})t} dt = \\textcolor{#00FF00}{${fsValueStr}}`;
+            
+            try {
+                if (equationElement && window.katex) {
+                    katex.render(latex, equationElement, { throwOnError: false, displayMode: false });
+                }
+                if (mobileEquationElement && window.katex) {
+                    katex.render(latex, mobileEquationElement, { throwOnError: false, displayMode: false });
+                }
+            } catch (e) {
+                console.error("KaTeX render error:", e);
+            }
+
+            if (!window.katex) {
+                setTimeout(renderEquation, 100);
+            }
+        }
+
+        function updateVisualization() {
+            sceneLaplace.children = sceneLaplace.children.filter(child => !child.userData.isDynamic);
+            
+            // Compute the integral treating f(t) as zero outside [tMin, tMax]
+            const tSamples = 3000;
+            let realSum = 0;
+            let imagSum = 0;
+            const curvePoints = [];
+            
+            const tRange = tMax - tMin;
+            
+            // Only integrate where f(t) is non-zero (within the window)
+            for (let i = 0; i < tSamples; i++) {
+                const t = tMin + (i / tSamples) * tRange;
+                const ft = evaluateTimeFunction(t);
+                const expFactor = Math.exp(-sReal * t);
+                const angle = -sImag * t;
+                const expReal = expFactor * Math.cos(angle);
+                const expImag = expFactor * Math.sin(angle);
+                
+                const integrandReal = ft * expReal;
+                const integrandImag = ft * expImag;
+                
+                realSum += integrandReal * (tRange / tSamples);
+                imagSum += integrandImag * (tRange / tSamples);
+                
+                // Store the computed result for the equation
+                lastComputedResult = { real: realSum, imag: imagSum };
+                
+                const x = integrandReal;
+                const y = integrandImag;
+                
+                // Map t directly to z-axis position (not scaled to fit -5 to 5)
+                // Use actual t value as z position
+                const zPos = t;
+                
+                // Add all finite points, no bounds checking
+                if (isFinite(x) && isFinite(y)) {
+                    curvePoints.push(new THREE.Vector3(x, y, zPos));
+                }
+            }
+
+            // Check if result is divergent
+            const isDivergent = !isFinite(realSum) || !isFinite(imagSum) || 
+                               Math.abs(realSum) > 1e8 || Math.abs(imagSum) > 1e8;
+
+            if (isDivergent) {
+                // Create a large pulsing sphere to indicate divergence
+                const divergeGeom = new THREE.SphereGeometry(2, 16, 16);
+                const divergeMat = new THREE.MeshBasicMaterial({ 
+                    color: 0xff0000,
+                    transparent: true,
+                    opacity: 0.5,
+                    wireframe: true
+                });
+                const divergeSphere = new THREE.Mesh(divergeGeom, divergeMat);
+                divergeSphere.userData.isDynamic = true;
+                sceneLaplace.add(divergeSphere);
+                
+                // Add text indicator
+                const divergeLabel = createTextSprite('DIVERGENT', 3);
+                divergeLabel.position.set(0, 3, 0);
+                divergeLabel.userData.isDynamic = true;
+                sceneLaplace.add(divergeLabel);
+                
+                // Update s-plane dot to red
+                if (draggableDot) {
+                    draggableDot.material.color.setHex(0xff0000);
+                    draggableDot.position.set(sReal, sImag, 0.02);
+                }
+                
+                renderEquation();
+                return;
+            }
+            
+            // Reset dot to orange if convergent
+            if (draggableDot) {
+                draggableDot.material.color.setHex(0xffa500);
+            }
+
+            // Draw the integration curve
+            if (curvePoints.length > 1) {
+                const curveGeom = new THREE.BufferGeometry().setFromPoints(curvePoints);
+                const curveMat = new THREE.LineBasicMaterial({ color: 0xff6b6b, linewidth: 2 });
+                const curveLine = new THREE.Line(curveGeom, curveMat);
+                curveLine.userData.isDynamic = true;
+                sceneLaplace.add(curveLine);
+            }
+
+            // Draw Laplace transform vector (computed from windowed f(t))
+            const vectorGeom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(realSum, imagSum, 0)
+            ]);
+            const vectorMat = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
+            const vectorLine = new THREE.Line(vectorGeom, vectorMat);
+            vectorLine.userData.isDynamic = true;
+            sceneLaplace.add(vectorLine);
+
+            // Draw cone at tip of vector
+            const magnitude = Math.sqrt(realSum * realSum + imagSum * imagSum);
+            const coneHeight = Math.max(0.1, Math.min(0.4, magnitude * 0.15));
+            const coneRadius = coneHeight * 0.5;
+            
+            const coneGeom = new THREE.ConeGeometry(coneRadius, coneHeight, 16);
+            const coneMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const cone = new THREE.Mesh(coneGeom, coneMat);
+            
+            if (magnitude > 0.001) {
+                const direction = new THREE.Vector3(realSum, imagSum, 0).normalize();
+                const up = new THREE.Vector3(0, 1, 0);
+                const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
+                cone.setRotationFromQuaternion(quaternion);
+                cone.position.set(realSum, imagSum, 0);
+                cone.position.add(direction.multiplyScalar(-coneHeight / 2));
+            } else {
+                cone.position.set(realSum, imagSum, 0);
+            }
+            
+            cone.userData.isDynamic = true;
+            sceneLaplace.add(cone);
+
+            // Update s-plane dot position
+            if (draggableDot) {
+                draggableDot.position.set(sReal, sImag, 0.02);
+            }
+
+            // Update equation with current values
+            renderEquation();
+        }
+
+        function getPinchDistance(touch1, touch2) {
+            const dx = touch2.clientX - touch1.clientX;
+            const dy = touch2.clientY - touch1.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function isPointInElement(x, y, element) {
+            const rect = element.getBoundingClientRect();
+            return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+        }
+
+        function setupEventListeners() {
+            const functionSelect = document.getElementById('function-select');
+            const functionSelectMobile = document.getElementById('function-select-mobile');
+            const hudToggle = document.getElementById('hud-toggle');
+            const hudToggleMobile = document.getElementById('hud-toggle-mobile');
+            const hud = document.getElementById('hud');
+            const mobileFunctionPanel = document.getElementById('mobile-function-panel');
+            const tMinInput = document.getElementById('t-min');
+            const tMaxInput = document.getElementById('t-max');
+            const tMinInputMobile = document.getElementById('t-min-mobile');
+            const tMaxInputMobile = document.getElementById('t-max-mobile');
+
+            // Desktop HUD toggle
+            if (hudToggle && hud) {
+                hudToggle.addEventListener('click', () => {
+                    hud.classList.toggle('hidden');
+                });
+            }
+
+            // Mobile HUD toggle
+            if (hudToggleMobile && mobileFunctionPanel) {
+                hudToggleMobile.addEventListener('click', () => {
+                    mobileFunctionPanel.classList.toggle('hidden');
+                });
+            }
+
+            // Function select handler
+            const handleFunctionSelect = (e) => {
+                currentFunction = e.target.value;
+                
+                if (functionSelect) functionSelect.value = currentFunction;
+                if (functionSelectMobile) functionSelectMobile.value = currentFunction;
+                
+                renderEquation();
+                updateVisualization();
+            };
+
+            if (functionSelect) {
+                functionSelect.addEventListener('change', handleFunctionSelect);
+            }
+            if (functionSelectMobile) {
+                functionSelectMobile.addEventListener('change', handleFunctionSelect);
+            }
+
+            // t-limits handlers
+            const handleTMinChange = (e) => {
+                const newMin = parseFloat(e.target.value);
+                if (isFinite(newMin) && newMin < tMax) {
+                    tMin = newMin;
+                    if (tMinInput) tMinInput.value = tMin;
+                    if (tMinInputMobile) tMinInputMobile.value = tMin;
+                    updateVisualization();
+                }
+            };
+
+            const handleTMaxChange = (e) => {
+                const newMax = parseFloat(e.target.value);
+                if (isFinite(newMax) && newMax > tMin) {
+                    tMax = newMax;
+                    if (tMaxInput) tMaxInput.value = tMax;
+                    if (tMaxInputMobile) tMaxInputMobile.value = tMax;
+                    updateVisualization();
+                }
+            };
+
+            if (tMinInput) {
+                tMinInput.addEventListener('change', handleTMinChange);
+            }
+            if (tMaxInput) {
+                tMaxInput.addEventListener('change', handleTMaxChange);
+            }
+            if (tMinInputMobile) {
+                tMinInputMobile.addEventListener('change', handleTMinChange);
+            }
+            if (tMaxInputMobile) {
+                tMaxInputMobile.addEventListener('change', handleTMaxChange);
+            }
+
+            // Setup s-plane controls (for dragging and zooming)
+            setupSPlaneControls();
+
+            // Setup Laplace viewport controls (for rotation)
+            setupLaplaceControls(rendererLaplace.domElement);
+
+            // Window resize
+            window.addEventListener('resize', () => {
+                resizeViewport('s-plane');
+                resizeViewport('laplace');
+            });
+
+            // Prevent body touch scroll
+            document.body.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+            }, { passive: false });
+        }
+
+        function setupSPlaneControls() {
+            const canvas = rendererSPlane.domElement;
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            function getMousePosition(e, rect) {
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                return {
+                    x: (x / rect.width) * 2 - 1,
+                    y: -(y / rect.height) * 2 + 1
+                };
+            }
+
+            function updateDotFromMouse(clientX, clientY) {
+                const rect = canvas.getBoundingClientRect();
+                const mousePos = getMousePosition({ clientX, clientY }, rect);
+                
+                mouse.x = mousePos.x;
+                mouse.y = mousePos.y;
+
+                raycaster.setFromCamera(mouse, cameraSPlane);
+                
+                const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+                const intersectPoint = new THREE.Vector3();
+                raycaster.ray.intersectPlane(plane, intersectPoint);
+
+                sReal = Math.max(-10, Math.min(10, intersectPoint.x));
+                sImag = Math.max(-10, Math.min(10, intersectPoint.y));
+
+                updateVisualization();
+            }
+
+            const getPointerPosition = (e) => {
+                if (e.touches && e.touches.length > 0) {
+                    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+                return { x: e.clientX, y: e.clientY };
+            };
+
+            const onPointerMove = (e) => {
+                if (controlsSPlane.isPinching && e.touches && e.touches.length === 2) {
+                    e.preventDefault();
+                    const currentDistance = getPinchDistance(e.touches[0], e.touches[1]);
+                    const delta = currentDistance - controlsSPlane.previousPinchDistance;
+                    
+                    controlsSPlane.zoom = Math.max(0.3, Math.min(5, 
+                        controlsSPlane.zoom + delta * 0.005));
+                    updateSPlaneCameraPosition();
+                    
+                    controlsSPlane.previousPinchDistance = currentDistance;
+
+                } else if (isDraggingDot) {
+                    e.preventDefault();
+                    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+                    updateDotFromMouse(clientX, clientY);
+                } else if (controlsSPlane.isDragging) {
+                    e.preventDefault();
+                    const pos = getPointerPosition(e);
+                    const deltaX = pos.x - controlsSPlane.previousMousePosition.x;
+                    const deltaY = pos.y - controlsSPlane.previousMousePosition.y;
+
+                    const movementScale = 0.01 / controlsSPlane.zoom;
+                    controlsSPlane.panX -= deltaX * movementScale;
+                    controlsSPlane.panY += deltaY * movementScale;
+
+                    controlsSPlane.previousMousePosition = pos;
+                    updateSPlaneCameraPosition();
+                }
+            };
+
+            const onPointerUp = () => {
+                isDraggingDot = false;
+                controlsSPlane.isDragging = false;
+                controlsSPlane.isPinching = false;
+                
+                window.removeEventListener('mousemove', onPointerMove);
+                window.removeEventListener('mouseup', onPointerUp);
+                window.removeEventListener('touchmove', onPointerMove);
+                window.removeEventListener('touchend', onPointerUp);
+            };
+
+            const onPointerDown = (e) => {
+                if (e.type === 'touchstart' && !isPointInElement(e.touches[0].clientX, e.touches[0].clientY, canvas)) {
+                    return;
+                }
+                
+                e.preventDefault();
+                
+                if (e.touches && e.touches.length === 2) {
+                    if (isPointInElement(e.touches[0].clientX, e.touches[0].clientY, canvas) &&
+                        isPointInElement(e.touches[1].clientX, e.touches[1].clientY, canvas)) {
+                        
+                        isDraggingDot = false;
+                        controlsSPlane.isDragging = false;
+                        controlsSPlane.isPinching = true;
+                        controlsSPlane.previousPinchDistance = getPinchDistance(e.touches[0], e.touches[1]);
+                    }
+                } else {
+                    const rect = canvas.getBoundingClientRect();
+                    const mousePos = getMousePosition(e, rect);
+                    
+                    mouse.x = mousePos.x;
+                    mouse.y = mousePos.y;
+
+                    raycaster.setFromCamera(mouse, cameraSPlane);
+                    const intersects = raycaster.intersectObject(draggableDot);
+
+                    if (intersects.length > 0) {
+                        isDraggingDot = true;
+                        controlsSPlane.isPinching = false;
+                        controlsSPlane.isDragging = false;
+                    } else {
+                        isDraggingDot = false;
+                        controlsSPlane.isPinching = false;
+                        controlsSPlane.isDragging = true;
+                        controlsSPlane.previousMousePosition = getPointerPosition(e);
+                    }
+                }
+
+                window.addEventListener('mousemove', onPointerMove);
+                window.addEventListener('mouseup', onPointerUp);
+                window.addEventListener('touchmove', onPointerMove, { passive: false });
+                window.addEventListener('touchend', onPointerUp);
+            };
+
+            const onWheel = (e) => {
+                e.preventDefault();
+                controlsSPlane.zoom = Math.max(0.3, Math.min(5, 
+                    controlsSPlane.zoom - e.deltaY * 0.001));
+                updateSPlaneCameraPosition();
+            };
+
+            canvas.addEventListener('mousedown', onPointerDown);
+            canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+            canvas.addEventListener('wheel', onWheel, { passive: false });
+        }
+
+        function setupLaplaceControls(canvas) {
+            const getPointerPosition = (e) => {
+                if (e.touches && e.touches.length > 0) {
+                    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+                return { x: e.clientX, y: e.clientY };
+            };
+
+            const onPointerMove = (e) => {
+                if (controlsLaplace.isPinching && e.touches && e.touches.length === 2) {
+                    e.preventDefault();
+                    const currentDistance = getPinchDistance(e.touches[0], e.touches[1]);
+                    const delta = currentDistance - controlsLaplace.previousPinchDistance;
+                    
+                    controlsLaplace.zoom = Math.max(0.5, Math.min(3, 
+                        controlsLaplace.zoom + delta * 0.005));
+                    updateCameraZoom();
+                    
+                    controlsLaplace.previousPinchDistance = currentDistance;
+
+                } else if (controlsLaplace.isDragging) {
+                    e.preventDefault();
+                    const pos = getPointerPosition(e);
+                    const deltaX = pos.x - controlsLaplace.previousMousePosition.x;
+                    const deltaY = pos.y - controlsLaplace.previousMousePosition.y;
+
+                    controlsLaplace.theta -= deltaX * 0.005;
+                    controlsLaplace.phi = Math.max(0.001, Math.min(Math.PI - 0.001, 
+                        controlsLaplace.phi + deltaY * 0.005));
+
+                    controlsLaplace.previousMousePosition = pos;
+                    updateCameraPosition();
+                }
+            };
+
+            const onPointerUp = () => {
+                controlsLaplace.isDragging = false;
+                controlsLaplace.isPinching = false;
+                
+                window.removeEventListener('mousemove', onPointerMove);
+                window.removeEventListener('mouseup', onPointerUp);
+                window.removeEventListener('touchmove', onPointerMove);
+                window.removeEventListener('touchend', onPointerUp);
+            };
+
+            const onPointerDown = (e) => {
+                if (e.type === 'touchstart' && !isPointInElement(e.touches[0].clientX, e.touches[0].clientY, canvas)) {
+                    return;
+                }
+                
+                e.preventDefault();
+                
+                if (e.touches && e.touches.length === 2) {
+                    if (isPointInElement(e.touches[0].clientX, e.touches[0].clientY, canvas) &&
+                        isPointInElement(e.touches[1].clientX, e.touches[1].clientY, canvas)) {
+                        
+                        controlsLaplace.isDragging = false;
+                        controlsLaplace.isPinching = true;
+                        controlsLaplace.previousPinchDistance = getPinchDistance(e.touches[0], e.touches[1]);
+                    }
+                } else {
+                    controlsLaplace.isPinching = false;
+                    controlsLaplace.isDragging = true;
+                    controlsLaplace.previousMousePosition = getPointerPosition(e);
+                }
+
+                window.addEventListener('mousemove', onPointerMove);
+                window.addEventListener('mouseup', onPointerUp);
+                window.addEventListener('touchmove', onPointerMove, { passive: false });
+                window.addEventListener('touchend', onPointerUp);
+            };
+
+            const onWheel = (e) => {
+                e.preventDefault();
+                controlsLaplace.zoom = Math.max(0.5, Math.min(3, 
+                    controlsLaplace.zoom - e.deltaY * 0.001));
+                updateCameraZoom();
+            };
+
+            canvas.addEventListener('mousedown', onPointerDown);
+            canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+            canvas.addEventListener('wheel', onWheel, { passive: false });
+        }
+
+        function resizeViewport(domain) {
+            const container = document.getElementById(`${domain}-viewport`);
+            if (!container) return;
+            
+            const camera = domain === 's-plane' ? cameraSPlane : cameraLaplace;
+            const renderer = domain === 's-plane' ? rendererSPlane : rendererLaplace;
+
+            if (!camera || !renderer) return;
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            if (width === 0 || height === 0) return;
+            
+            const aspect = width / height;
+            const frustumSize = domain === 's-plane' ? 10 : 15;
+            camera.left = frustumSize * aspect / -2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = frustumSize / -2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (rendererSPlane && sceneSPlane && cameraSPlane) {
+                rendererSPlane.render(sceneSPlane, cameraSPlane);
+            }
+            if (rendererLaplace && sceneLaplace && cameraLaplace) {
+                rendererLaplace.render(sceneLaplace, cameraLaplace);
+            }
+        }
+
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
