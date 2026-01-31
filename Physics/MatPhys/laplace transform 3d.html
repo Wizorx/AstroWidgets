@@ -1011,9 +1011,6 @@
                 realSum += integrandReal * (tRange / tSamples);
                 imagSum += integrandImag * (tRange / tSamples);
                 
-                // Store the computed result for the equation
-                lastComputedResult = { real: realSum, imag: imagSum };
-                
                 const x = integrandReal;
                 const y = integrandImag;
                 
@@ -1027,45 +1024,32 @@
                 }
             }
 
-            // Check if result is divergent
-            const isDivergent = !isFinite(realSum) || !isFinite(imagSum) || 
-                               Math.abs(realSum) > 1e8 || Math.abs(imagSum) > 1e8;
+            // Check if numerical result is divergent or unreliable
+            const numericalIsDivergent = !isFinite(realSum) || !isFinite(imagSum) || 
+                                        Math.abs(realSum) > 1e8 || Math.abs(imagSum) > 1e8;
 
-            if (isDivergent) {
-                // Create a large pulsing sphere to indicate divergence
-                const divergeGeom = new THREE.SphereGeometry(2, 16, 16);
-                const divergeMat = new THREE.MeshBasicMaterial({ 
-                    color: 0xff0000,
-                    transparent: true,
-                    opacity: 0.5,
-                    wireframe: true
-                });
-                const divergeSphere = new THREE.Mesh(divergeGeom, divergeMat);
-                divergeSphere.userData.isDynamic = true;
-                sceneLaplace.add(divergeSphere);
-                
-                // Add text indicator
-                const divergeLabel = createTextSprite('DIVERGENT', 3);
-                divergeLabel.position.set(0, 3, 0);
-                divergeLabel.userData.isDynamic = true;
-                sceneLaplace.add(divergeLabel);
-                
-                // Update s-plane dot to red
-                if (draggableDot) {
-                    draggableDot.material.color.setHex(0xff0000);
-                    draggableDot.position.set(sReal, sImag, 0.02);
-                }
-                
-                renderEquation();
-                return;
+            // Use analytic continuation if numerical integration fails
+            let finalReal, finalImag;
+            if (numericalIsDivergent) {
+                // Fall back to the closed-form analytic formula
+                const analyticResult = evaluateTransform(sReal, sImag);
+                finalReal = analyticResult.real;
+                finalImag = analyticResult.imag;
+            } else {
+                // Use the numerically computed result
+                finalReal = realSum;
+                finalImag = imagSum;
             }
             
-            // Reset dot to orange if convergent
+            // Store the final result for the equation display
+            lastComputedResult = { real: finalReal, imag: finalImag };
+            
+            // Reset dot to orange (always valid with analytic continuation)
             if (draggableDot) {
                 draggableDot.material.color.setHex(0xffa500);
             }
 
-            // Draw the integration curve
+            // Draw the integration curve (if we have valid curve points)
             if (curvePoints.length > 1) {
                 const curveGeom = new THREE.BufferGeometry().setFromPoints(curvePoints);
                 const curveMat = new THREE.LineBasicMaterial({ color: 0xff6b6b, linewidth: 2 });
@@ -1074,10 +1058,10 @@
                 sceneLaplace.add(curveLine);
             }
 
-            // Draw Laplace transform vector (computed from windowed f(t))
+            // Draw Laplace transform vector (using final result with analytic continuation)
             const vectorGeom = new THREE.BufferGeometry().setFromPoints([
                 new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(realSum, imagSum, 0)
+                new THREE.Vector3(finalReal, finalImag, 0)
             ]);
             const vectorMat = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
             const vectorLine = new THREE.Line(vectorGeom, vectorMat);
@@ -1085,7 +1069,7 @@
             sceneLaplace.add(vectorLine);
 
             // Draw cone at tip of vector
-            const magnitude = Math.sqrt(realSum * realSum + imagSum * imagSum);
+            const magnitude = Math.sqrt(finalReal * finalReal + finalImag * finalImag);
             const coneHeight = Math.max(0.1, Math.min(0.4, magnitude * 0.15));
             const coneRadius = coneHeight * 0.5;
             
@@ -1094,14 +1078,14 @@
             const cone = new THREE.Mesh(coneGeom, coneMat);
             
             if (magnitude > 0.001) {
-                const direction = new THREE.Vector3(realSum, imagSum, 0).normalize();
+                const direction = new THREE.Vector3(finalReal, finalImag, 0).normalize();
                 const up = new THREE.Vector3(0, 1, 0);
                 const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
                 cone.setRotationFromQuaternion(quaternion);
-                cone.position.set(realSum, imagSum, 0);
+                cone.position.set(finalReal, finalImag, 0);
                 cone.position.add(direction.multiplyScalar(-coneHeight / 2));
             } else {
-                cone.position.set(realSum, imagSum, 0);
+                cone.position.set(finalReal, finalImag, 0);
             }
             
             cone.userData.isDynamic = true;
