@@ -1259,7 +1259,7 @@
             // ── arrows: always reposition, but only rebuild geometry if zoom changed ──
             const arrowLen    = 0.4  / zoom;
             const arrowHead   = 0.2  / zoom;
-            const arrowRadius = 0.08 / zoom;
+            const arrowRadius = 0.1 / zoom;
 
             [sPlaneGrid.axisArrows[0], sPlaneGrid.axisArrows[1]].forEach((arrow, idx) => {
                 if (idx === 0) {
@@ -1666,7 +1666,7 @@
             const poles = getPoles();
             // Base snap radius in world units; dividing by zoom means when zoomed in
             // the snap zone covers more world-space → more leeway for the user.
-            const snapRadius = 0.08 / controlsSPlane.zoom;
+            const snapRadius = 0.1 / controlsSPlane.zoom;
             let bestDist = Infinity;
             let bestPole = null;
             poles.forEach(p => {
@@ -1692,7 +1692,7 @@
             // once the snap fires the dot lands exactly on the pole, which is
             // trivially < this threshold.  Outside the snap radius the dot is
             // always farther away than this threshold so it never falsely triggers.
-            const POLE_THRESHOLD = 0.08 / controlsSPlane.zoom;
+            const POLE_THRESHOLD = 0.1 / controlsSPlane.zoom;
             const nearPole = distToPoles() < POLE_THRESHOLD;
 
             // ── 3D curve: always drawn from the windowed numerical integration ──
