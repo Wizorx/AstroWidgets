@@ -345,12 +345,6 @@
                 <option value="exp_sin">e^(-at)sin(ωt) [a=0.5, ω=2π]</option>
                 <option value="exp_cos">e^(-at)cos(ωt) [a=0.5, ω=2π]</option>
             </select>
-            <div style="display: flex; gap: 4px; align-items: center; margin-top: 8px;">
-                <label style="margin: 0; font-size: 11px;">Range:</label>
-                <input type="number" id="t-min-mobile" value="0" step="0.5" style="width: 50px; padding: 4px;">
-                <span style="font-size: 11px;">to</span>
-                <input type="number" id="t-max-mobile" value="5" step="0.5" style="width: 50px; padding: 4px;">
-            </div>
         </div>
     </div>
     
@@ -374,15 +368,6 @@
                 <option value="exp_cos">e^(-at)cos(ωt) [a=0.5, ω=2π]</option>
             </select>
         </div>
-
-        <div class="control-group">
-            <label>Display range for f(t):</label>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="number" id="t-min" value="0" step="0.5" style="width: 60px;">
-                <span style="font-size: 12px;">to</span>
-                <input type="number" id="t-max" value="5" step="0.5" style="width: 60px;">
-            </div>
-        </div>
         
         <div class="help-text">
             Left: Drag to pan | Scroll/Pinch to zoom<br>
@@ -395,14 +380,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         let sceneSPlane, sceneLaplace, cameraSPlane, cameraLaplace, rendererSPlane, rendererLaplace;
-        let sReal = 1;  // σ (real part of s)
+        let sReal = 0;  // σ (real part of s)
         let sImag = 0;  // ω (imaginary part of s)
         let currentFunction = 'sin';
         let draggableDot = null;
         let isDraggingDot = false;
         let tMin = 0;
-        let tMax = 5;
-        let lastComputedResult = { real: 0, imag: 0 }; // Store result from visualization
+        let tMax = 40;
+        let lastComputedResult = { real: 0, imag: 0, divergent: false };
         
         const controlsSPlane = {
             isDragging: false,
@@ -429,6 +414,7 @@
             exp: {
                 name: 'e^{-at}',
                 params: { a: 1 },
+                poles: (params) => [{ real: -params.a, imag: 0 }], // Pole at s = -a
                 timeFunc: (t, params) => Math.exp(-params.a * t),
                 transform: (s, params) => {
                     const sr = s.real;
@@ -439,11 +425,43 @@
                         imag: -si / denom
                     };
                 },
+                // Windowed transform: integral from tMin to tMax of e^(-at) * e^(-st) dt
+                windowedTransform: (s, params, tMin, tMax) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const a = params.a;
+                    
+                    // e^(-(a+s)t) evaluated from tMin to tMax
+                    const alpha_r = sr + a;
+                    const alpha_i = si;
+                    const alpha_mag_sq = alpha_r * alpha_r + alpha_i * alpha_i;
+                    
+                    if (alpha_mag_sq < 1e-15) {
+                        // If a+s ≈ 0, integral is just (tMax - tMin)
+                        return { real: tMax - tMin, imag: 0 };
+                    }
+                    
+                    // exp(-(a+s)*tMax) - exp(-(a+s)*tMin)
+                    const exp_max_r = Math.exp(-alpha_r * tMax) * Math.cos(-alpha_i * tMax);
+                    const exp_max_i = Math.exp(-alpha_r * tMax) * Math.sin(-alpha_i * tMax);
+                    const exp_min_r = Math.exp(-alpha_r * tMin) * Math.cos(-alpha_i * tMin);
+                    const exp_min_i = Math.exp(-alpha_r * tMin) * Math.sin(-alpha_i * tMin);
+                    
+                    const diff_r = exp_max_r - exp_min_r;
+                    const diff_i = exp_max_i - exp_min_i;
+                    
+                    // Divide by -(a+s)
+                    return {
+                        real: -(diff_r * alpha_r + diff_i * alpha_i) / alpha_mag_sq,
+                        imag: -(diff_i * alpha_r - diff_r * alpha_i) / alpha_mag_sq
+                    };
+                },
                 latex: (params) => `\\frac{1}{s + a}`
             },
             constant: {
                 name: '1',
                 params: {},
+                poles: (params) => [{ real: 0, imag: 0 }], // Pole at s = 0
                 timeFunc: (t, params) => 1,
                 transform: (s, params) => {
                     const sr = s.real;
@@ -457,11 +475,34 @@
                         imag: -si / denom
                     };
                 },
+                windowedTransform: (s, params, tMin, tMax) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const s_mag_sq = sr * sr + si * si;
+                    
+                    if (s_mag_sq < 1e-15) {
+                        return { real: tMax - tMin, imag: 0 };
+                    }
+                    
+                    const exp_max_r = Math.exp(-sr * tMax) * Math.cos(-si * tMax);
+                    const exp_max_i = Math.exp(-sr * tMax) * Math.sin(-si * tMax);
+                    const exp_min_r = Math.exp(-sr * tMin) * Math.cos(-si * tMin);
+                    const exp_min_i = Math.exp(-sr * tMin) * Math.sin(-si * tMin);
+                    
+                    const diff_r = exp_max_r - exp_min_r;
+                    const diff_i = exp_max_i - exp_min_i;
+                    
+                    return {
+                        real: -(diff_r * sr + diff_i * si) / s_mag_sq,
+                        imag: -(diff_i * sr - diff_r * si) / s_mag_sq
+                    };
+                },
                 latex: (params) => `\\frac{1}{s}`
             },
             t: {
                 name: 't',
                 params: {},
+                poles: (params) => [{ real: 0, imag: 0 }], // Pole at s = 0 (double pole)
                 timeFunc: (t, params) => t,
                 transform: (s, params) => {
                     const sr = s.real;
@@ -475,17 +516,55 @@
                         imag: -2 * sr * si / denom
                     };
                 },
+                windowedTransform: (s, params, tMin, tMax) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const s_mag_sq = sr * sr + si * si;
+                    
+                    if (s_mag_sq < 1e-15) {
+                        return { real: (tMax * tMax - tMin * tMin) / 2, imag: 0 };
+                    }
+                    
+                    // Integral of t * e^(-st) from tMin to tMax
+                    // = [-t*e^(-st)/s - e^(-st)/s^2] from tMin to tMax
+                    
+                    const eval_at_t = (t) => {
+                        const exp_r = Math.exp(-sr * t) * Math.cos(-si * t);
+                        const exp_i = Math.exp(-sr * t) * Math.sin(-si * t);
+                        
+                        // -t * e^(-st) / s
+                        const term1_r = -t * (exp_r * sr + exp_i * si) / s_mag_sq;
+                        const term1_i = -t * (exp_i * sr - exp_r * si) / s_mag_sq;
+                        
+                        // -e^(-st) / s^2
+                        const s2_mag_sq = s_mag_sq * s_mag_sq;
+                        const s2_r = sr * sr - si * si;
+                        const s2_i = 2 * sr * si;
+                        const term2_r = -(exp_r * s2_r + exp_i * s2_i) / s2_mag_sq;
+                        const term2_i = -(exp_i * s2_r - exp_r * s2_i) / s2_mag_sq;
+                        
+                        return { r: term1_r + term2_r, i: term1_i + term2_i };
+                    };
+                    
+                    const at_max = eval_at_t(tMax);
+                    const at_min = eval_at_t(tMin);
+                    
+                    return {
+                        real: at_max.r - at_min.r,
+                        imag: at_max.i - at_min.i
+                    };
+                },
                 latex: (params) => `\\frac{1}{s^2}`
             },
             t2: {
                 name: 't^2',
                 params: {},
+                poles: (params) => [{ real: 0, imag: 0 }], // Pole at s = 0 (triple pole)
                 timeFunc: (t, params) => t * t,
                 transform: (s, params) => {
                     const sr = s.real;
                     const si = s.imag;
                     const s2 = sr * sr + si * si;
-                    // For very small s (near origin), return a very large but finite value
                     if (s2 < 1e-10) {
                         const angle = Math.atan2(si, sr);
                         const largeMag = 1e6;
@@ -504,23 +583,152 @@
                         divergent: false
                     };
                 },
+                windowedTransform: (s, params, tMin, tMax) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const s_mag_sq = sr * sr + si * si;
+                    
+                    if (s_mag_sq < 1e-15) {
+                        return { real: (tMax * tMax * tMax - tMin * tMin * tMin) / 3, imag: 0 };
+                    }
+                    
+                    // Integral of t^2 * e^(-st) from tMin to tMax using integration by parts twice
+                    const eval_at_t = (t) => {
+                        const exp_r = Math.exp(-sr * t) * Math.cos(-si * t);
+                        const exp_i = Math.exp(-sr * t) * Math.sin(-si * t);
+                        
+                        const t2 = t * t;
+                        const s2_mag_sq = s_mag_sq * s_mag_sq;
+                        const s3_mag_sq = s2_mag_sq * s_mag_sq;
+                        
+                        // Complex division helpers
+                        const div_s = (num_r, num_i) => ({
+                            r: (num_r * sr + num_i * si) / s_mag_sq,
+                            i: (num_i * sr - num_r * si) / s_mag_sq
+                        });
+                        
+                        const s2_r = sr * sr - si * si;
+                        const s2_i = 2 * sr * si;
+                        const div_s2 = (num_r, num_i) => ({
+                            r: (num_r * s2_r + num_i * s2_i) / s2_mag_sq,
+                            i: (num_i * s2_r - num_r * s2_i) / s2_mag_sq
+                        });
+                        
+                        const s3_r = sr * s2_r - si * s2_i;
+                        const s3_i = sr * s2_i + si * s2_r;
+                        const div_s3 = (num_r, num_i) => ({
+                            r: (num_r * s3_r + num_i * s3_i) / s3_mag_sq,
+                            i: (num_i * s3_r - num_r * s3_i) / s3_mag_sq
+                        });
+                        
+                        // -t^2 * e^(-st) / s
+                        const term1 = div_s(-t2 * exp_r, -t2 * exp_i);
+                        
+                        // -2t * e^(-st) / s^2
+                        const term2 = div_s2(-2 * t * exp_r, -2 * t * exp_i);
+                        
+                        // -2 * e^(-st) / s^3
+                        const term3 = div_s3(-2 * exp_r, -2 * exp_i);
+                        
+                        return {
+                            r: term1.r + term2.r + term3.r,
+                            i: term1.i + term2.i + term3.i
+                        };
+                    };
+                    
+                    const at_max = eval_at_t(tMax);
+                    const at_min = eval_at_t(tMin);
+                    
+                    return {
+                        real: at_max.r - at_min.r,
+                        imag: at_max.i - at_min.i
+                    };
+                },
                 latex: (params) => `\\frac{2}{s^3}`
             },
             sin: {
                 name: '\\sin(\\omega t)',
                 params: { omega: 2 * Math.PI },
+                poles: (params) => [
+                    { real: 0, imag: params.omega },   // Pole at s = +iω
+                    { real: 0, imag: -params.omega }   // Pole at s = -iω
+                ],
                 timeFunc: (t, params) => Math.sin(params.omega * t),
                 transform: (s, params) => {
                     const sr = s.real;
                     const si = s.imag;
                     const w = params.omega;
-                    const denom = (sr * sr + (si - w) * (si - w)) * (sr * sr + (si + w) * (si + w));
-                    const numerReal = 2 * w * sr;
-                    const numerImag = w * w - sr * sr - si * si;
-                    const commonFactor = 1 / denom;
+                    
+                    // L{sin(wt)} = w/(s^2 + w^2)
+                    // s^2 = (sr + i*si)^2 = sr^2 - si^2 + 2i*sr*si
+                    const s2_r = sr * sr - si * si;
+                    const s2_i = 2 * sr * si;
+                    
+                    // s^2 + w^2
+                    const denom_r = s2_r + w * w;
+                    const denom_i = s2_i;
+                    
+                    const denom_mag_sq = denom_r * denom_r + denom_i * denom_i;
+                    
+                    // w / (s^2 + w^2) = w * (denom_r - i*denom_i) / |denom|^2
                     return {
-                        real: numerReal * commonFactor,
-                        imag: numerImag * commonFactor
+                        real: w * denom_r / denom_mag_sq,
+                        imag: -w * denom_i / denom_mag_sq
+                    };
+                },
+                windowedTransform: (s, params, tMin, tMax) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const w = params.omega;
+                    
+                    // Integral of sin(wt) * e^(-st) dt from tMin to tMax
+                    // = [e^(-st) * (-s*sin(wt) - w*cos(wt))] / (s^2 + w^2) evaluated at bounds
+                    
+                    const eval_at_t = (t) => {
+                        // e^(-st)
+                        const exp_r = Math.exp(-sr * t) * Math.cos(-si * t);
+                        const exp_i = Math.exp(-sr * t) * Math.sin(-si * t);
+                        
+                        const cos_wt = Math.cos(w * t);
+                        const sin_wt = Math.sin(w * t);
+                        
+                        // -s * sin(wt) = (-sr - i*si) * sin(wt)
+                        const term1_r = -sr * sin_wt;
+                        const term1_i = -si * sin_wt;
+                        
+                        // -w * cos(wt) = -w * cos(wt) + 0i
+                        const term2_r = -w * cos_wt;
+                        const term2_i = 0;
+                        
+                        // Sum: (-s*sin(wt) - w*cos(wt))
+                        const sum_r = term1_r + term2_r;
+                        const sum_i = term1_i + term2_i;
+                        
+                        // Multiply: e^(-st) * sum
+                        const prod_r = exp_r * sum_r - exp_i * sum_i;
+                        const prod_i = exp_r * sum_i + exp_i * sum_r;
+                        
+                        return { r: prod_r, i: prod_i };
+                    };
+                    
+                    const at_max = eval_at_t(tMax);
+                    const at_min = eval_at_t(tMin);
+                    
+                    // Difference
+                    const diff_r = at_max.r - at_min.r;
+                    const diff_i = at_max.i - at_min.i;
+                    
+                    // Divide by (s^2 + w^2)
+                    const s2_r = sr * sr - si * si;
+                    const s2_i = 2 * sr * si;
+                    const s2_plus_w2_r = s2_r + w * w;
+                    const s2_plus_w2_i = s2_i;
+                    
+                    const divisor_mag_sq = s2_plus_w2_r * s2_plus_w2_r + s2_plus_w2_i * s2_plus_w2_i;
+                    
+                    return {
+                        real: (diff_r * s2_plus_w2_r + diff_i * s2_plus_w2_i) / divisor_mag_sq,
+                        imag: (diff_i * s2_plus_w2_r - diff_r * s2_plus_w2_i) / divisor_mag_sq
                     };
                 },
                 latex: (params) => `\\frac{\\omega}{s^2 + \\omega^2}`
@@ -528,17 +736,93 @@
             cos: {
                 name: '\\cos(\\omega t)',
                 params: { omega: 2 * Math.PI },
+                poles: (params) => [
+                    { real: 0, imag: params.omega },   // Pole at s = +iω
+                    { real: 0, imag: -params.omega }   // Pole at s = -iω
+                ],
                 timeFunc: (t, params) => Math.cos(params.omega * t),
                 transform: (s, params) => {
                     const sr = s.real;
                     const si = s.imag;
                     const w = params.omega;
-                    const denom = (sr * sr + si * si) * (sr * sr + si * si) + 2 * w * w * (sr * sr - si * si) + w * w * w * w;
-                    const numerReal = sr * (sr * sr + si * si + w * w);
-                    const numerImag = -si * (sr * sr + si * si + w * w);
+                    
+                    // L{cos(wt)} = s/(s^2 + w^2)
+                    // s^2 = (sr + i*si)^2 = sr^2 - si^2 + 2i*sr*si
+                    const s2_r = sr * sr - si * si;
+                    const s2_i = 2 * sr * si;
+                    
+                    // s^2 + w^2
+                    const denom_r = s2_r + w * w;
+                    const denom_i = s2_i;
+                    
+                    const denom_mag_sq = denom_r * denom_r + denom_i * denom_i;
+                    
+                    // s / (s^2 + w^2) = (sr + i*si) * (denom_r - i*denom_i) / |denom|^2
+                    const numer_r = sr * denom_r + si * denom_i;
+                    const numer_i = si * denom_r - sr * denom_i;
+                    
                     return {
-                        real: numerReal / denom,
-                        imag: numerImag / denom
+                        real: numer_r / denom_mag_sq,
+                        imag: numer_i / denom_mag_sq
+                    };
+                },
+                windowedTransform: (s, params, tMin, tMax) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const w = params.omega;
+                    
+                    // Integral of cos(wt) * e^(-st) dt from tMin to tMax
+                    // = [e^(-st) * (-s*cos(wt) + w*sin(wt))] / (s^2 + w^2) evaluated at bounds
+                    
+                    const s_mag_sq = sr * sr + si * si;
+                    const denom = s_mag_sq + w * w;
+                    
+                    const eval_at_t = (t) => {
+                        // e^(-st)
+                        const exp_r = Math.exp(-sr * t) * Math.cos(-si * t);
+                        const exp_i = Math.exp(-sr * t) * Math.sin(-si * t);
+                        
+                        const cos_wt = Math.cos(w * t);
+                        const sin_wt = Math.sin(w * t);
+                        
+                        // -s * cos(wt) = (-sr - i*si) * cos(wt)
+                        const term1_r = -sr * cos_wt;
+                        const term1_i = -si * cos_wt;
+                        
+                        // w * sin(wt) = w * sin(wt) + 0i
+                        const term2_r = w * sin_wt;
+                        const term2_i = 0;
+                        
+                        // Sum: (-s*cos(wt) + w*sin(wt))
+                        const sum_r = term1_r + term2_r;
+                        const sum_i = term1_i + term2_i;
+                        
+                        // Multiply: e^(-st) * sum
+                        const prod_r = exp_r * sum_r - exp_i * sum_i;
+                        const prod_i = exp_r * sum_i + exp_i * sum_r;
+                        
+                        return { r: prod_r, i: prod_i };
+                    };
+                    
+                    const at_max = eval_at_t(tMax);
+                    const at_min = eval_at_t(tMin);
+                    
+                    // Difference
+                    const diff_r = at_max.r - at_min.r;
+                    const diff_i = at_max.i - at_min.i;
+                    
+                    // Divide by (s^2 + w^2)
+                    // For complex s: s^2 = (sr + i*si)^2 = sr^2 - si^2 + 2i*sr*si
+                    const s2_r = sr * sr - si * si;
+                    const s2_i = 2 * sr * si;
+                    const s2_plus_w2_r = s2_r + w * w;
+                    const s2_plus_w2_i = s2_i;
+                    
+                    const divisor_mag_sq = s2_plus_w2_r * s2_plus_w2_r + s2_plus_w2_i * s2_plus_w2_i;
+                    
+                    return {
+                        real: (diff_r * s2_plus_w2_r + diff_i * s2_plus_w2_i) / divisor_mag_sq,
+                        imag: (diff_i * s2_plus_w2_r - diff_r * s2_plus_w2_i) / divisor_mag_sq
                     };
                 },
                 latex: (params) => `\\frac{s}{s^2 + \\omega^2}`
@@ -546,18 +830,90 @@
             exp_sin: {
                 name: 'e^{-at}\\sin(\\omega t)',
                 params: { a: 0.5, omega: 2 * Math.PI },
+                poles: (params) => [
+                    { real: -params.a, imag: params.omega },   // Pole at s = -a + iω
+                    { real: -params.a, imag: -params.omega }   // Pole at s = -a - iω
+                ],
                 timeFunc: (t, params) => Math.exp(-params.a * t) * Math.sin(params.omega * t),
                 transform: (s, params) => {
-                    const sr = s.real + params.a;
+                    const sr = s.real;
                     const si = s.imag;
+                    const a = params.a;
                     const w = params.omega;
-                    const denom = sr * sr * sr * sr + 2 * sr * sr * si * si + si * si * si * si + 
-                                  2 * w * w * (sr * sr - si * si) + w * w * w * w;
-                    const numerReal = 2 * w * sr;
-                    const numerImag = w * (w * w - sr * sr - si * si);
+                    
+                    // L{e^(-at)sin(wt)} = w/((s+a)^2 + w^2)
+                    // s+a = (sr+a) + i*si
+                    const s_eff_r = sr + a;
+                    const s_eff_i = si;
+                    
+                    // (s+a)^2
+                    const s2_r = s_eff_r * s_eff_r - s_eff_i * s_eff_i;
+                    const s2_i = 2 * s_eff_r * s_eff_i;
+                    
+                    // (s+a)^2 + w^2
+                    const denom_r = s2_r + w * w;
+                    const denom_i = s2_i;
+                    
+                    const denom_mag_sq = denom_r * denom_r + denom_i * denom_i;
+                    
                     return {
-                        real: numerReal / denom,
-                        imag: numerImag / denom
+                        real: w * denom_r / denom_mag_sq,
+                        imag: -w * denom_i / denom_mag_sq
+                    };
+                },
+                windowedTransform: (s, params, tMin, tMax) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const a = params.a;
+                    const w = params.omega;
+                    
+                    // Integral of e^(-at) * sin(wt) * e^(-st) = integral of sin(wt) * e^(-(a+s)t)
+                    // This is the same as sin integral but with s replaced by (s+a)
+                    const s_eff_r = sr + a;
+                    const s_eff_i = si;
+                    
+                    const eval_at_t = (t) => {
+                        // e^(-(s+a)t)
+                        const exp_r = Math.exp(-s_eff_r * t) * Math.cos(-s_eff_i * t);
+                        const exp_i = Math.exp(-s_eff_r * t) * Math.sin(-s_eff_i * t);
+                        
+                        const cos_wt = Math.cos(w * t);
+                        const sin_wt = Math.sin(w * t);
+                        
+                        // -(s+a) * sin(wt)
+                        const term1_r = -s_eff_r * sin_wt;
+                        const term1_i = -s_eff_i * sin_wt;
+                        
+                        // -w * cos(wt)
+                        const term2_r = -w * cos_wt;
+                        const term2_i = 0;
+                        
+                        const sum_r = term1_r + term2_r;
+                        const sum_i = term1_i + term2_i;
+                        
+                        const prod_r = exp_r * sum_r - exp_i * sum_i;
+                        const prod_i = exp_r * sum_i + exp_i * sum_r;
+                        
+                        return { r: prod_r, i: prod_i };
+                    };
+                    
+                    const at_max = eval_at_t(tMax);
+                    const at_min = eval_at_t(tMin);
+                    
+                    const diff_r = at_max.r - at_min.r;
+                    const diff_i = at_max.i - at_min.i;
+                    
+                    // Divide by ((s+a)^2 + w^2)
+                    const s2_r = s_eff_r * s_eff_r - s_eff_i * s_eff_i;
+                    const s2_i = 2 * s_eff_r * s_eff_i;
+                    const s2_plus_w2_r = s2_r + w * w;
+                    const s2_plus_w2_i = s2_i;
+                    
+                    const divisor_mag_sq = s2_plus_w2_r * s2_plus_w2_r + s2_plus_w2_i * s2_plus_w2_i;
+                    
+                    return {
+                        real: (diff_r * s2_plus_w2_r + diff_i * s2_plus_w2_i) / divisor_mag_sq,
+                        imag: (diff_i * s2_plus_w2_r - diff_r * s2_plus_w2_i) / divisor_mag_sq
                     };
                 },
                 latex: (params) => `\\frac{\\omega}{(s + a)^2 + \\omega^2}`
@@ -565,18 +921,93 @@
             exp_cos: {
                 name: 'e^{-at}\\cos(\\omega t)',
                 params: { a: 0.5, omega: 2 * Math.PI },
+                poles: (params) => [
+                    { real: -params.a, imag: params.omega },   // Pole at s = -a + iω
+                    { real: -params.a, imag: -params.omega }   // Pole at s = -a - iω
+                ],
                 timeFunc: (t, params) => Math.exp(-params.a * t) * Math.cos(params.omega * t),
                 transform: (s, params) => {
-                    const sr = s.real + params.a;
+                    const sr = s.real;
                     const si = s.imag;
+                    const a = params.a;
                     const w = params.omega;
-                    const denom = sr * sr * sr * sr + 2 * sr * sr * si * si + si * si * si * si + 
-                                  2 * w * w * (sr * sr - si * si) + w * w * w * w;
-                    const numerReal = sr * (sr * sr + si * si + w * w);
-                    const numerImag = -si * (sr * sr + si * si + w * w);
+                    
+                    // L{e^(-at)cos(wt)} = (s+a)/((s+a)^2 + w^2)
+                    // s+a = (sr+a) + i*si
+                    const s_eff_r = sr + a;
+                    const s_eff_i = si;
+                    
+                    // (s+a)^2
+                    const s2_r = s_eff_r * s_eff_r - s_eff_i * s_eff_i;
+                    const s2_i = 2 * s_eff_r * s_eff_i;
+                    
+                    // (s+a)^2 + w^2
+                    const denom_r = s2_r + w * w;
+                    const denom_i = s2_i;
+                    
+                    const denom_mag_sq = denom_r * denom_r + denom_i * denom_i;
+                    
+                    // (s+a) / ((s+a)^2 + w^2)
+                    const numer_r = s_eff_r * denom_r + s_eff_i * denom_i;
+                    const numer_i = s_eff_i * denom_r - s_eff_r * denom_i;
+                    
                     return {
-                        real: numerReal / denom,
-                        imag: numerImag / denom
+                        real: numer_r / denom_mag_sq,
+                        imag: numer_i / denom_mag_sq
+                    };
+                },
+                windowedTransform: (s, params, tMin, tMax) => {
+                    const sr = s.real;
+                    const si = s.imag;
+                    const a = params.a;
+                    const w = params.omega;
+                    
+                    // Same as cos integral but with s replaced by (s+a)
+                    const s_eff_r = sr + a;
+                    const s_eff_i = si;
+                    
+                    const eval_at_t = (t) => {
+                        // e^(-(s+a)t)
+                        const exp_r = Math.exp(-s_eff_r * t) * Math.cos(-s_eff_i * t);
+                        const exp_i = Math.exp(-s_eff_r * t) * Math.sin(-s_eff_i * t);
+                        
+                        const cos_wt = Math.cos(w * t);
+                        const sin_wt = Math.sin(w * t);
+                        
+                        // -(s+a) * cos(wt)
+                        const term1_r = -s_eff_r * cos_wt;
+                        const term1_i = -s_eff_i * cos_wt;
+                        
+                        // w * sin(wt)
+                        const term2_r = w * sin_wt;
+                        const term2_i = 0;
+                        
+                        const sum_r = term1_r + term2_r;
+                        const sum_i = term1_i + term2_i;
+                        
+                        const prod_r = exp_r * sum_r - exp_i * sum_i;
+                        const prod_i = exp_r * sum_i + exp_i * sum_r;
+                        
+                        return { r: prod_r, i: prod_i };
+                    };
+                    
+                    const at_max = eval_at_t(tMax);
+                    const at_min = eval_at_t(tMin);
+                    
+                    const diff_r = at_max.r - at_min.r;
+                    const diff_i = at_max.i - at_min.i;
+                    
+                    // Divide by ((s+a)^2 + w^2)
+                    const s2_r = s_eff_r * s_eff_r - s_eff_i * s_eff_i;
+                    const s2_i = 2 * s_eff_r * s_eff_i;
+                    const s2_plus_w2_r = s2_r + w * w;
+                    const s2_plus_w2_i = s2_i;
+                    
+                    const divisor_mag_sq = s2_plus_w2_r * s2_plus_w2_r + s2_plus_w2_i * s2_plus_w2_i;
+                    
+                    return {
+                        real: (diff_r * s2_plus_w2_r + diff_i * s2_plus_w2_i) / divisor_mag_sq,
+                        imag: (diff_i * s2_plus_w2_r - diff_r * s2_plus_w2_i) / divisor_mag_sq
                     };
                 },
                 latex: (params) => `\\frac{s + a}{(s + a)^2 + \\omega^2}`
@@ -617,6 +1048,7 @@
             setupLaplaceViewport();
 
             createSPlane();
+            updatePoleMarkers();
             createLaplaceDomain();
 
             setupEventListeners();
@@ -697,129 +1129,321 @@
             return sprite;
         }
 
+        // ── s-plane dynamic grid state ──
+        const sPlaneGrid = {
+            gridLines: [],       // {line, axis:'h'|'v', coord} – reusable Line objects
+            tickLines: [],       // reusable tick Line objects
+            tickLabels: [],      // reusable Sprite objects
+            axisLabels: [],      // σ / iω sprites
+            axisLines: [],       // the two axis Line objects
+            axisArrows: [],      // the two ArrowHelper objects
+            originLabel: null,
+            poleMarkers: []      // red X meshes, rebuilt on function change
+        };
+
         function createSPlane() {
-            // Background plane - larger to reduce blank space when zoomed out
-            const planeGeom = new THREE.PlaneGeometry(20, 20);
-            const planeMat = new THREE.MeshBasicMaterial({ 
-                color: 0x191919,
-                transparent: false, 
-                side: THREE.DoubleSide
-            });
-            const plane = new THREE.Mesh(planeGeom, planeMat);
-            sceneSPlane.add(plane);
-            
-            // Create grid lines only at integer positions
-            const gridMaterial = new THREE.LineBasicMaterial({ color: 0x444444 });
-            
-            for (let i = -10; i <= 10; i++) {
-                // Vertical lines (parallel to imaginary axis)
-                const vGeometry = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(i, -10, 0),
-                    new THREE.Vector3(i, 10, 0)
-                ]);
-                const vLine = new THREE.Line(vGeometry, gridMaterial);
-                sceneSPlane.add(vLine);
-                
-                // Horizontal lines (parallel to real axis)
-                const hGeometry = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(-10, i, 0),
-                    new THREE.Vector3(10, i, 0)
-                ]);
-                const hLine = new THREE.Line(hGeometry, gridMaterial);
-                sceneSPlane.add(hLine);
-            }
-            
-            // Real axis (σ) - full length in both directions
-            const realAxisMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
-            const realAxisGeometry = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(-10, 0, 0.01),
-                new THREE.Vector3(10, 0, 0.01)
+            // ── axes (infinite lines + arrows + labels) ──
+            const axisMat = new THREE.LineBasicMaterial({ color: 0xffffff });
+
+            // Real axis line (will be repositioned in updateSPlaneGrid)
+            const realGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-100, 0, 0.01), new THREE.Vector3(100, 0, 0.01)
             ]);
-            const realAxis = new THREE.Line(realAxisGeometry, realAxisMaterial);
-            sceneSPlane.add(realAxis);
-            
-            // Real axis arrow
-            const realArrow = new THREE.ArrowHelper(
-                new THREE.Vector3(1, 0, 0),
-                new THREE.Vector3(9.6, 0, 0.01),
-                0.4,
-                0xffffff,
-                0.2,
-                0.15
-            );
+            const realLine = new THREE.Line(realGeo, axisMat);
+            sceneSPlane.add(realLine);
+            sPlaneGrid.axisLines.push(realLine);
+
+            // Imaginary axis line
+            const imagGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, -100, 0.01), new THREE.Vector3(0, 100, 0.01)
+            ]);
+            const imagLine = new THREE.Line(imagGeo, axisMat);
+            sceneSPlane.add(imagLine);
+            sPlaneGrid.axisLines.push(imagLine);
+
+            // Arrows – created once, repositioned each frame
+            const realArrow = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,0.01), 0.4, 0xffffff, 0.2, 0.15);
             sceneSPlane.add(realArrow);
-            
-            const realLabel = createTextSprite('σ', 0.8);
-            realLabel.position.set(10.5, 0, 0.01);
-            sceneSPlane.add(realLabel);
-            
-            // Imaginary axis (iω) - full length in both directions
-            const imagAxisMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
-            const imagAxisGeometry = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, -10, 0.01),
-                new THREE.Vector3(0, 10, 0.01)
-            ]);
-            const imagAxis = new THREE.Line(imagAxisGeometry, imagAxisMaterial);
-            sceneSPlane.add(imagAxis);
-            
-            // Imaginary axis arrow
-            const imagArrow = new THREE.ArrowHelper(
-                new THREE.Vector3(0, 1, 0),
-                new THREE.Vector3(0, 9.6, 0.01),
-                0.4,
-                0xffffff,
-                0.2,
-                0.15
-            );
+            sPlaneGrid.axisArrows.push(realArrow);
+
+            const imagArrow = new THREE.ArrowHelper(new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,0.01), 0.4, 0xffffff, 0.2, 0.15);
             sceneSPlane.add(imagArrow);
-            
-            const imagLabel = createTextSprite('iω', 0.8);
-            imagLabel.position.set(0, 10.5, 0.01);
-            sceneSPlane.add(imagLabel);
-            
-            // Add tick marks and labels
-            const tickSize = 0.15;
-            const tickMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
-            
-            for (let i = -10; i <= 10; i++) {
-                if (i !== 0) {
-                    // Real axis ticks
-                    const realTickGeometry = new THREE.BufferGeometry().setFromPoints([
-                        new THREE.Vector3(i, -tickSize, 0.01),
-                        new THREE.Vector3(i, tickSize, 0.01)
-                    ]);
-                    const realTick = new THREE.Line(realTickGeometry, tickMaterial);
-                    sceneSPlane.add(realTick);
-                    
-                    const realNumLabel = createTextSprite(i.toString(), 0.5);
-                    realNumLabel.position.set(i, -0.5, 0.01);
-                    sceneSPlane.add(realNumLabel);
-                    
-                    // Imaginary axis ticks with 'i' suffix
-                    const imagTickGeometry = new THREE.BufferGeometry().setFromPoints([
-                        new THREE.Vector3(-tickSize, i, 0.01),
-                        new THREE.Vector3(tickSize, i, 0.01)
-                    ]);
-                    const imagTick = new THREE.Line(imagTickGeometry, tickMaterial);
-                    sceneSPlane.add(imagTick);
-                    
-                    const imagNumLabel = createTextSprite(i.toString() + 'i', 0.5);
-                    imagNumLabel.position.set(-0.6, i, 0.01);
-                    sceneSPlane.add(imagNumLabel);
-                }
-            }
-            
+            sPlaneGrid.axisArrows.push(imagArrow);
+
+            // Axis label sprites
+            const sigmaLabel = createTextSprite('σ', 0.8);
+            sceneSPlane.add(sigmaLabel);
+            sPlaneGrid.axisLabels.push(sigmaLabel);
+
+            const omegaLabel = createTextSprite('iω', 0.8);
+            sceneSPlane.add(omegaLabel);
+            sPlaneGrid.axisLabels.push(omegaLabel);
+
             // Origin label
-            const originLabel = createTextSprite('0', 0.5);
-            originLabel.position.set(-0.4, -0.4, 0.01);
-            sceneSPlane.add(originLabel);
-            
-            // Create draggable dot
-            const dotGeom = new THREE.SphereGeometry(0.12, 16, 16);
+            sPlaneGrid.originLabel = createTextSprite('0', 0.5);
+            sceneSPlane.add(sPlaneGrid.originLabel);
+
+            // ── draggable dot ──
+            // Use radius 1 geometry; actual visible size is driven by mesh.scale in updateSPlaneGrid
+            const dotGeom = new THREE.SphereGeometry(1, 16, 16);
             const dotMat = new THREE.MeshBasicMaterial({ color: 0xffa500 });
             draggableDot = new THREE.Mesh(dotGeom, dotMat);
             draggableDot.position.set(sReal, sImag, 0.02);
             sceneSPlane.add(draggableDot);
+
+            // Initial grid + poles
+            updateSPlaneGrid();
+            updatePoleMarkers();
+        }
+
+        // Returns the visible world-space bounds given current pan & zoom
+        function getVisibleBounds() {
+            const container = document.getElementById('s-plane-viewport');
+            const aspect = container.clientWidth / container.clientHeight;
+            const frustumSize = 10;
+            const halfW = (frustumSize * aspect / 2) / controlsSPlane.zoom;
+            const halfH = (frustumSize / 2) / controlsSPlane.zoom;
+            return {
+                left:   controlsSPlane.panX - halfW,
+                right:  controlsSPlane.panX + halfW,
+                bottom: controlsSPlane.panY - halfH,
+                top:    controlsSPlane.panY + halfH
+            };
+        }
+
+        function updateSPlaneGrid() {
+            const b = getVisibleBounds();
+            const zoom = controlsSPlane.zoom;
+
+            // ── pick a nice step that keeps grid density reasonable ──
+            const rawSpan = Math.max(b.right - b.left, b.top - b.bottom);
+            let step = Math.pow(10, Math.floor(Math.log10(rawSpan / 8)));
+            if (rawSpan / step > 16) step *= 2;
+            if (rawSpan / step < 6)  step /= 2;
+            if (step < 0.01) step = 0.01;
+
+            // ── grid lines ──
+            const minI = Math.floor(b.left  / step);
+            const maxI = Math.ceil(b.right / step);
+            const minJ = Math.floor(b.bottom / step);
+            const maxJ = Math.ceil(b.top / step);
+            const needed = (maxI - minI + 1) + (maxJ - minJ + 1);
+
+            const gridMat = new THREE.LineBasicMaterial({ color: 0x444444 });
+            while (sPlaneGrid.gridLines.length < needed) {
+                const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(1,0,0)]);
+                const l = new THREE.Line(g, gridMat);
+                l.visible = false;
+                sceneSPlane.add(l);
+                sPlaneGrid.gridLines.push(l);
+            }
+            let gi = 0;
+            for (let i = minI; i <= maxI; i++) {
+                const x = i * step;
+                const l = sPlaneGrid.gridLines[gi++];
+                l.geometry.setFromPoints([new THREE.Vector3(x, b.bottom, 0), new THREE.Vector3(x, b.top, 0)]);
+                l.geometry.computeBoundingSphere();
+                l.visible = true;
+            }
+            for (let j = minJ; j <= maxJ; j++) {
+                const y = j * step;
+                const l = sPlaneGrid.gridLines[gi++];
+                l.geometry.setFromPoints([new THREE.Vector3(b.left, y, 0), new THREE.Vector3(b.right, y, 0)]);
+                l.geometry.computeBoundingSphere();
+                l.visible = true;
+            }
+            for (; gi < sPlaneGrid.gridLines.length; gi++) sPlaneGrid.gridLines[gi].visible = false;
+
+            // ── arrows (stick to visible edges, tip size scales with zoom) ──
+            const arrowLen    = 0.4  / zoom;
+            const arrowHead   = 0.2  / zoom;
+            const arrowRadius = 0.04 / zoom;
+            // ArrowHelper doesn't let us resize after creation, so we rebuild the
+            // cone (child[1]) and the shaft (child[0]) geometry each frame.
+            // child[0] = shaft Line, child[1] = cone Mesh
+            [sPlaneGrid.axisArrows[0], sPlaneGrid.axisArrows[1]].forEach((arrow, idx) => {
+                // Reposition the base so the tip lands at the viewport edge
+                if (idx === 0) {
+                    arrow.position.set(b.right - arrowLen, 0, 0.01);
+                } else {
+                    arrow.position.set(0, b.top - arrowLen, 0.01);
+                }
+                // Rebuild cone geometry to match current zoom
+                const cone = arrow.children[1];   // the ConeGeometry mesh
+                cone.geometry.dispose();
+                cone.geometry = new THREE.ConeGeometry(arrowRadius, arrowHead, 8);
+                // Cone is positioned so its base sits at arrowLen - arrowHead
+                cone.position.y = arrowLen - arrowHead / 2;
+                // Rebuild shaft so it stops where the cone base starts
+                const shaft = arrow.children[0];  // the Line
+                shaft.geometry.dispose();
+                shaft.geometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(0, arrowLen - arrowHead, 0)
+                ]);
+                shaft.geometry.computeBoundingSphere();
+            });
+
+            // ── axis labels (σ, iω) – position + scale ──
+            const axisLabelScale = 0.8 / zoom;
+            sPlaneGrid.axisLabels[0].position.set(b.right + 0.05 / zoom, 0, 0.01);
+            sPlaneGrid.axisLabels[0].scale.set(axisLabelScale, axisLabelScale / 2, 1);
+            sPlaneGrid.axisLabels[1].position.set(0, b.top + 0.05 / zoom, 0.01);
+            sPlaneGrid.axisLabels[1].scale.set(axisLabelScale, axisLabelScale / 2, 1);
+
+            // ── origin label ──
+            const originLabelScale = 0.5 / zoom;
+            sPlaneGrid.originLabel.position.set(-0.4 / zoom, -0.4 / zoom, 0.01);
+            sPlaneGrid.originLabel.scale.set(originLabelScale, originLabelScale / 2, 1);
+
+            // ── dot size ──
+            const dotRadius = 0.12 / zoom;
+            if (draggableDot) draggableDot.scale.setScalar(dotRadius);
+
+            // ── tick marks + numeric labels ──
+            const tickSize = 0.12 / zoom;
+            const tickMat = new THREE.LineBasicMaterial({ color: 0xffffff });
+            const labelScale = Math.max(0.25, 0.5 / zoom);
+
+            const ticks = [];
+            for (let i = minI; i <= maxI; i++) {
+                const x = i * step;
+                if (Math.abs(x) < 1e-9) continue;
+                ticks.push({ x, y: 0, label: formatNum(x), axis: 'real' });
+            }
+            for (let j = minJ; j <= maxJ; j++) {
+                const y = j * step;
+                if (Math.abs(y) < 1e-9) continue;
+                ticks.push({ x: 0, y, label: formatNum(y) + 'i', axis: 'imag' });
+            }
+
+            while (sPlaneGrid.tickLines.length < ticks.length) {
+                const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(1,0,0)]);
+                const l = new THREE.Line(g, tickMat);
+                l.visible = false;
+                sceneSPlane.add(l);
+                sPlaneGrid.tickLines.push(l);
+            }
+            while (sPlaneGrid.tickLabels.length < ticks.length) {
+                const s = createTextSprite('0', 0.5);
+                s.visible = false;
+                sceneSPlane.add(s);
+                sPlaneGrid.tickLabels.push(s);
+            }
+
+            for (let ti = 0; ti < ticks.length; ti++) {
+                const t = ticks[ti];
+                const tl = sPlaneGrid.tickLines[ti];
+                const ll = sPlaneGrid.tickLabels[ti];
+
+                if (t.axis === 'real') {
+                    tl.geometry.setFromPoints([
+                        new THREE.Vector3(t.x, -tickSize, 0.01),
+                        new THREE.Vector3(t.x,  tickSize, 0.01)
+                    ]);
+                    ll.position.set(t.x, -0.35 / zoom, 0.01);
+                } else {
+                    tl.geometry.setFromPoints([
+                        new THREE.Vector3(-tickSize, t.y, 0.01),
+                        new THREE.Vector3( tickSize, t.y, 0.01)
+                    ]);
+                    ll.position.set(-0.55 / zoom, t.y, 0.01);
+                }
+                tl.geometry.computeBoundingSphere();
+                tl.visible = true;
+                ll.visible = true;
+                ll.scale.set(labelScale, labelScale / 2, 1);
+                updateSpriteText(ll, t.label);
+            }
+            for (let ti = ticks.length; ti < sPlaneGrid.tickLines.length; ti++) {
+                sPlaneGrid.tickLines[ti].visible = false;
+                sPlaneGrid.tickLabels[ti].visible = false;
+            }
+
+            // ── rebuild pole X markers at current zoom so they scale ──
+            rebuildPoleXGeometry();
+        }
+
+        function formatNum(v) {
+            if (Math.abs(v - Math.round(v)) < 1e-9) return Math.round(v).toString();
+            // show one decimal if it's a half-step, else two
+            const s1 = v.toFixed(1);
+            if (Math.abs(parseFloat(s1) - v) < 1e-9) return s1;
+            return v.toFixed(2);
+        }
+
+        function updateSpriteText(sprite, text) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 256; canvas.height = 128;
+            ctx.fillStyle = 'white';
+            ctx.font = 'Bold 64px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 64);
+            sprite.material.map.image = canvas;
+            sprite.material.map.needsUpdate = true;
+        }
+
+        // ── Pole markers ──
+        function getPoles() {
+            const pair = laplacePairs[currentFunction];
+            return pair.poles ? pair.poles(pair.params) : [];
+        }
+
+        function createPoleX(pos) {
+            // size scales inversely with zoom so the X stays a constant screen size
+            const size = 0.08 / controlsSPlane.zoom;
+            const mat = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            const g1 = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(pos.real - size, pos.imag - size, 0.03),
+                new THREE.Vector3(pos.real + size, pos.imag + size, 0.03)
+            ]);
+            const g2 = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(pos.real + size, pos.imag - size, 0.03),
+                new THREE.Vector3(pos.real - size, pos.imag + size, 0.03)
+            ]);
+            g1.computeBoundingSphere();
+            g2.computeBoundingSphere();
+            const l1 = new THREE.Line(g1, mat);
+            const l2 = new THREE.Line(g2, mat);
+            const group = new THREE.Group();
+            group.add(l1);
+            group.add(l2);
+            group.userData.isPoleMarker = true;
+            group.userData.polePos = pos;   // store so we can rebuild geometry later
+            return group;
+        }
+
+        function updatePoleMarkers() {
+            sPlaneGrid.poleMarkers.forEach(m => sceneSPlane.remove(m));
+            sPlaneGrid.poleMarkers = [];
+            const poles = getPoles();
+            poles.forEach(p => {
+                const x = createPoleX(p);
+                sceneSPlane.add(x);
+                sPlaneGrid.poleMarkers.push(x);
+            });
+        }
+
+        // Called every grid update so pole-X size tracks zoom smoothly
+        function rebuildPoleXGeometry() {
+            const size = 0.08 / controlsSPlane.zoom;
+            sPlaneGrid.poleMarkers.forEach(group => {
+                const pos = group.userData.polePos;
+                const l1 = group.children[0];
+                const l2 = group.children[1];
+                l1.geometry.setFromPoints([
+                    new THREE.Vector3(pos.real - size, pos.imag - size, 0.03),
+                    new THREE.Vector3(pos.real + size, pos.imag + size, 0.03)
+                ]);
+                l1.geometry.computeBoundingSphere();
+                l2.geometry.setFromPoints([
+                    new THREE.Vector3(pos.real + size, pos.imag - size, 0.03),
+                    new THREE.Vector3(pos.real - size, pos.imag + size, 0.03)
+                ]);
+                l2.geometry.computeBoundingSphere();
+            });
         }
 
         function createLaplaceDomain() {
@@ -938,6 +1562,7 @@
             cameraSPlane.position.y = controlsSPlane.panY;
             cameraSPlane.zoom = controlsSPlane.zoom;
             cameraSPlane.updateProjectionMatrix();
+            updateSPlaneGrid();
         }
 
         function renderEquation() {
@@ -950,24 +1575,54 @@
             const sigmaStr = Math.abs(sReal) < 1e-12 ? '0' : sReal.toFixed(2);
             const omegaStr = Math.abs(sImag) < 1e-12 ? '0' : Math.abs(sImag).toFixed(2);
             const omegaSign = sImag >= 0 ? '+' : '-';
-            const sValueStr = `${sigmaStr}${omegaSign}${omegaStr}i`;
+            const sValueStr = `\\textcolor{#FFA500}{${sigmaStr}${omegaSign}${omegaStr}i}`;
             
-            // Use the result from the windowed computation (stored in lastComputedResult)
+            // Use lastComputedResult which is set by updateVisualization –
+            // this is the single source of truth that covers both pole-proximity
+            // and analytic-validity checks, so vector and equation stay in sync.
             let fsValueStr;
             
-            // Check if the result is divergent
-            if (!isFinite(lastComputedResult.real) || !isFinite(lastComputedResult.imag) || 
-                Math.abs(lastComputedResult.real) > 1e8 || Math.abs(lastComputedResult.imag) > 1e8) {
-                fsValueStr = '\\infty';
+            if (lastComputedResult.divergent) {
+                fsValueStr = '\\textcolor{#FF0000}{\\widetilde{\\infty}}';
             } else {
                 const realStr = Math.abs(lastComputedResult.real) < 1e-12 ? '0' : lastComputedResult.real.toFixed(2);
                 const imagStr = Math.abs(lastComputedResult.imag) < 1e-12 ? '0' : Math.abs(lastComputedResult.imag).toFixed(2);
                 const imagSign = lastComputedResult.imag >= 0 ? '+' : '-';
-                fsValueStr = `${realStr}${imagSign}${imagStr}i`;
+                fsValueStr = `\\textcolor{#00FF00}{${realStr}${imagSign}${imagStr}i}`;
             }
             
-            // FIXED: Always show integral bounds from 0 to infinity
-            const latex = `\\int_{0}^{\\infty} ${pair.name} \\, e^{-(\\textcolor{#FFA500}{${sValueStr}})t} dt = \\textcolor{#00FF00}{${fsValueStr}}`;
+            // Build closed-form with s plugged in
+            const s = `(${sValueStr})`;
+            let closedFormula = '';
+            
+            switch(currentFunction) {
+                case 'exp':
+                    closedFormula = `\\frac{1}{${s} + ${pair.params.a}}`;
+                    break;
+                case 'constant':
+                    closedFormula = `\\frac{1}{${s}}`;
+                    break;
+                case 't':
+                    closedFormula = `\\frac{1}{${s}^2}`;
+                    break;
+                case 't2':
+                    closedFormula = `\\frac{2}{${s}^3}`;
+                    break;
+                case 'sin':
+                    closedFormula = `\\frac{\\omega}{${s}^2 + \\omega^2}`;
+                    break;
+                case 'cos':
+                    closedFormula = `\\frac{${s}}{${s}^2 + \\omega^2}`;
+                    break;
+                case 'exp_sin':
+                    closedFormula = `\\frac{\\omega}{(${s} + ${pair.params.a})^2 + \\omega^2}`;
+                    break;
+                case 'exp_cos':
+                    closedFormula = `\\frac{${s} + ${pair.params.a}}{(${s} + ${pair.params.a})^2 + \\omega^2}`;
+                    break;
+            }
+            
+            const latex = `\\int_{0}^{\\infty} ${pair.name} \\, e^{-(${sValueStr})t} dt = ${closedFormula} = ${fsValueStr}`;
             
             try {
                 if (equationElement && window.katex) {
@@ -985,71 +1640,70 @@
             }
         }
 
+        // Returns the minimum distance from (sReal,sImag) to any pole of the current function
+        function distToPoles() {
+            const poles = getPoles();
+            let minDist = Infinity;
+            poles.forEach(p => {
+                const d = Math.sqrt((sReal - p.real)**2 + (sImag - p.imag)**2);
+                if (d < minDist) minDist = d;
+            });
+            return minDist;
+        }
+
+        // Snap sReal/sImag onto the nearest pole if within a zoom-scaled radius.
+        // Returns true if a snap happened.
+        function trySnapToPole() {
+            const poles = getPoles();
+            // Base snap radius in world units; dividing by zoom means when zoomed in
+            // the snap zone covers more world-space → more leeway for the user.
+            const snapRadius = 0.04 / controlsSPlane.zoom;
+            let bestDist = Infinity;
+            let bestPole = null;
+            poles.forEach(p => {
+                const d = Math.sqrt((sReal - p.real)**2 + (sImag - p.imag)**2);
+                if (d < bestDist) { bestDist = d; bestPole = p; }
+            });
+            if (bestPole && bestDist < snapRadius) {
+                sReal = bestPole.real;
+                sImag = bestPole.imag;
+                return true;
+            }
+            return false;
+        }
+
         function updateVisualization() {
             sceneLaplace.children = sceneLaplace.children.filter(child => !child.userData.isDynamic);
-            
-            // Compute the integral treating f(t) as zero outside [tMin, tMax]
+
+            // ── snap to pole if close enough (zoom-aware) ──
+            trySnapToPole();
+
+            // ── decide: are we on a pole? ──
+            // Use the same radius as the snap so the two are in lockstep:
+            // once the snap fires the dot lands exactly on the pole, which is
+            // trivially < this threshold.  Outside the snap radius the dot is
+            // always farther away than this threshold so it never falsely triggers.
+            const POLE_THRESHOLD = 0.04 / controlsSPlane.zoom;
+            const nearPole = distToPoles() < POLE_THRESHOLD;
+
+            // ── 3D curve: always drawn from the windowed numerical integration ──
             const tSamples = 3000;
-            let realSum = 0;
-            let imagSum = 0;
             const curvePoints = [];
-            
             const tRange = tMax - tMin;
-            
-            // Only integrate where f(t) is non-zero (within the window)
+
             for (let i = 0; i < tSamples; i++) {
                 const t = tMin + (i / tSamples) * tRange;
                 const ft = evaluateTimeFunction(t);
                 const expFactor = Math.exp(-sReal * t);
                 const angle = -sImag * t;
-                const expReal = expFactor * Math.cos(angle);
-                const expImag = expFactor * Math.sin(angle);
-                
-                const integrandReal = ft * expReal;
-                const integrandImag = ft * expImag;
-                
-                realSum += integrandReal * (tRange / tSamples);
-                imagSum += integrandImag * (tRange / tSamples);
-                
-                const x = integrandReal;
-                const y = integrandImag;
-                
-                // Map t directly to z-axis position (not scaled to fit -5 to 5)
-                // Use actual t value as z position
-                const zPos = t;
-                
-                // Add all finite points, no bounds checking
-                if (isFinite(x) && isFinite(y)) {
-                    curvePoints.push(new THREE.Vector3(x, y, zPos));
+                const integrandReal = ft * expFactor * Math.cos(angle);
+                const integrandImag = ft * expFactor * Math.sin(angle);
+
+                if (isFinite(integrandReal) && isFinite(integrandImag)) {
+                    curvePoints.push(new THREE.Vector3(integrandReal, integrandImag, t));
                 }
             }
 
-            // Check if numerical result is divergent or unreliable
-            const numericalIsDivergent = !isFinite(realSum) || !isFinite(imagSum) || 
-                                        Math.abs(realSum) > 1e8 || Math.abs(imagSum) > 1e8;
-
-            // Use analytic continuation if numerical integration fails
-            let finalReal, finalImag;
-            if (numericalIsDivergent) {
-                // Fall back to the closed-form analytic formula
-                const analyticResult = evaluateTransform(sReal, sImag);
-                finalReal = analyticResult.real;
-                finalImag = analyticResult.imag;
-            } else {
-                // Use the numerically computed result
-                finalReal = realSum;
-                finalImag = imagSum;
-            }
-            
-            // Store the final result for the equation display
-            lastComputedResult = { real: finalReal, imag: finalImag };
-            
-            // Reset dot to orange (always valid with analytic continuation)
-            if (draggableDot) {
-                draggableDot.material.color.setHex(0xffa500);
-            }
-
-            // Draw the integration curve (if we have valid curve points)
             if (curvePoints.length > 1) {
                 const curveGeom = new THREE.BufferGeometry().setFromPoints(curvePoints);
                 const curveMat = new THREE.LineBasicMaterial({ color: 0xff6b6b, linewidth: 2 });
@@ -1058,45 +1712,60 @@
                 sceneLaplace.add(curveLine);
             }
 
-            // Draw Laplace transform vector (using final result with analytic continuation)
-            const vectorGeom = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(finalReal, finalImag, 0)
-            ]);
-            const vectorMat = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
-            const vectorLine = new THREE.Line(vectorGeom, vectorMat);
-            vectorLine.userData.isDynamic = true;
-            sceneLaplace.add(vectorLine);
+            // ── analytic result (infinite-range closed-form) ──
+            const analyticResult = evaluateTransform(sReal, sImag);
+            const analyticValid = !analyticResult.divergent &&
+                                  isFinite(analyticResult.real) && isFinite(analyticResult.imag) &&
+                                  Math.abs(analyticResult.real) < 1e6 && Math.abs(analyticResult.imag) < 1e6;
 
-            // Draw cone at tip of vector
-            const magnitude = Math.sqrt(finalReal * finalReal + finalImag * finalImag);
-            const coneHeight = Math.max(0.1, Math.min(0.4, magnitude * 0.15));
-            const coneRadius = coneHeight * 0.5;
-            
-            const coneGeom = new THREE.ConeGeometry(coneRadius, coneHeight, 16);
-            const coneMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-            const cone = new THREE.Mesh(coneGeom, coneMat);
-            
-            if (magnitude > 0.001) {
-                const direction = new THREE.Vector3(finalReal, finalImag, 0).normalize();
-                const up = new THREE.Vector3(0, 1, 0);
-                const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
-                cone.setRotationFromQuaternion(quaternion);
-                cone.position.set(finalReal, finalImag, 0);
-                cone.position.add(direction.multiplyScalar(-coneHeight / 2));
+            if (nearPole || !analyticValid) {
+                // ── near-pole / divergent state ──
+                lastComputedResult = { real: NaN, imag: NaN, divergent: true };
+                if (draggableDot) draggableDot.material.color.setHex(0xff0000);
+                // NO vector or cone drawn
             } else {
-                cone.position.set(finalReal, finalImag, 0);
-            }
-            
-            cone.userData.isDynamic = true;
-            sceneLaplace.add(cone);
+                // ── normal state ──
+                lastComputedResult = { real: analyticResult.real, imag: analyticResult.imag, divergent: false };
+                if (draggableDot) draggableDot.material.color.setHex(0xffa500);
 
-            // Update s-plane dot position
-            if (draggableDot) {
-                draggableDot.position.set(sReal, sImag, 0.02);
+                const finalReal = analyticResult.real;
+                const finalImag = analyticResult.imag;
+
+                // vector line
+                const vectorGeom = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(finalReal, finalImag, 0)
+                ]);
+                const vectorMat = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
+                const vectorLine = new THREE.Line(vectorGeom, vectorMat);
+                vectorLine.userData.isDynamic = true;
+                sceneLaplace.add(vectorLine);
+
+                // cone arrowhead
+                const magnitude = Math.sqrt(finalReal * finalReal + finalImag * finalImag);
+                const coneHeight = Math.max(0.1, Math.min(0.4, magnitude * 0.15));
+                const coneRadius = coneHeight * 0.5;
+                const coneGeom = new THREE.ConeGeometry(coneRadius, coneHeight, 16);
+                const coneMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                const cone = new THREE.Mesh(coneGeom, coneMat);
+
+                if (magnitude > 0.001) {
+                    const direction = new THREE.Vector3(finalReal, finalImag, 0).normalize();
+                    const up = new THREE.Vector3(0, 1, 0);
+                    const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
+                    cone.setRotationFromQuaternion(quaternion);
+                    cone.position.set(finalReal, finalImag, 0);
+                    cone.position.add(direction.multiplyScalar(-coneHeight / 2));
+                } else {
+                    cone.position.set(finalReal, finalImag, 0);
+                }
+                cone.userData.isDynamic = true;
+                sceneLaplace.add(cone);
             }
 
-            // Update equation with current values
+            // update dot world position
+            if (draggableDot) draggableDot.position.set(sReal, sImag, 0.02);
+
             renderEquation();
         }
 
@@ -1118,10 +1787,6 @@
             const hudToggleMobile = document.getElementById('hud-toggle-mobile');
             const hud = document.getElementById('hud');
             const mobileFunctionPanel = document.getElementById('mobile-function-panel');
-            const tMinInput = document.getElementById('t-min');
-            const tMaxInput = document.getElementById('t-max');
-            const tMinInputMobile = document.getElementById('t-min-mobile');
-            const tMaxInputMobile = document.getElementById('t-max-mobile');
 
             // Desktop HUD toggle
             if (hudToggle && hud) {
@@ -1144,6 +1809,7 @@
                 if (functionSelect) functionSelect.value = currentFunction;
                 if (functionSelectMobile) functionSelectMobile.value = currentFunction;
                 
+                updatePoleMarkers();
                 renderEquation();
                 updateVisualization();
             };
@@ -1153,40 +1819,6 @@
             }
             if (functionSelectMobile) {
                 functionSelectMobile.addEventListener('change', handleFunctionSelect);
-            }
-
-            // t-limits handlers
-            const handleTMinChange = (e) => {
-                const newMin = parseFloat(e.target.value);
-                if (isFinite(newMin) && newMin < tMax) {
-                    tMin = newMin;
-                    if (tMinInput) tMinInput.value = tMin;
-                    if (tMinInputMobile) tMinInputMobile.value = tMin;
-                    updateVisualization();
-                }
-            };
-
-            const handleTMaxChange = (e) => {
-                const newMax = parseFloat(e.target.value);
-                if (isFinite(newMax) && newMax > tMin) {
-                    tMax = newMax;
-                    if (tMaxInput) tMaxInput.value = tMax;
-                    if (tMaxInputMobile) tMaxInputMobile.value = tMax;
-                    updateVisualization();
-                }
-            };
-
-            if (tMinInput) {
-                tMinInput.addEventListener('change', handleTMinChange);
-            }
-            if (tMaxInput) {
-                tMaxInput.addEventListener('change', handleTMaxChange);
-            }
-            if (tMinInputMobile) {
-                tMinInputMobile.addEventListener('change', handleTMinChange);
-            }
-            if (tMaxInputMobile) {
-                tMaxInputMobile.addEventListener('change', handleTMaxChange);
             }
 
             // Setup s-plane controls (for dragging and zooming)
@@ -1234,8 +1866,8 @@
                 const intersectPoint = new THREE.Vector3();
                 raycaster.ray.intersectPlane(plane, intersectPoint);
 
-                sReal = Math.max(-10, Math.min(10, intersectPoint.x));
-                sImag = Math.max(-10, Math.min(10, intersectPoint.y));
+                sReal = intersectPoint.x;
+                sImag = intersectPoint.y;
 
                 updateVisualization();
             }
@@ -1314,9 +1946,23 @@
                     mouse.y = mousePos.y;
 
                     raycaster.setFromCamera(mouse, cameraSPlane);
-                    const intersects = raycaster.intersectObject(draggableDot);
-
-                    if (intersects.length > 0) {
+                    
+                    // Hit zone scales with the dot's visible world-space size (0.12/zoom).
+                    // Touch gets a 3× multiplier so it's easy to grab on mobile.
+                    const isTouchDevice = e.type === 'touchstart';
+                    const hitThreshold = (isTouchDevice ? 0.36 : 0.12) / controlsSPlane.zoom;
+                    
+                    // Check distance to dot in world space
+                    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+                    const intersectPoint = new THREE.Vector3();
+                    raycaster.ray.intersectPlane(plane, intersectPoint);
+                    
+                    const distToDot = Math.sqrt(
+                        (intersectPoint.x - sReal) * (intersectPoint.x - sReal) +
+                        (intersectPoint.y - sImag) * (intersectPoint.y - sImag)
+                    );
+                    
+                    if (distToDot < hitThreshold) {
                         isDraggingDot = true;
                         controlsSPlane.isPinching = false;
                         controlsSPlane.isDragging = false;
@@ -1452,6 +2098,8 @@
             camera.bottom = frustumSize / -2;
             camera.updateProjectionMatrix();
             renderer.setSize(width, height);
+
+            if (domain === 's-plane') updateSPlaneGrid();
         }
 
         function animate() {
