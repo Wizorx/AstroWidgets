@@ -1138,7 +1138,8 @@
             axisLines: [],       // the two axis Line objects
             axisArrows: [],      // the two ArrowHelper objects
             originLabel: null,
-            poleMarkers: []      // red X meshes, rebuilt on function change
+            poleMarkers: [],     // red X meshes, rebuilt on function change
+            lastZoom: NaN        // track zoom to avoid rebuilding geometry on pure pan
         };
 
         function createSPlane() {
@@ -1179,9 +1180,9 @@
             sceneSPlane.add(omegaLabel);
             sPlaneGrid.axisLabels.push(omegaLabel);
 
-            // Origin label
-            sPlaneGrid.originLabel = createTextSprite('0', 0.5);
-            sceneSPlane.add(sPlaneGrid.originLabel);
+            // Origin label - removed per user request
+            // sPlaneGrid.originLabel = createTextSprite('0', 0.5);
+            // sceneSPlane.add(sPlaneGrid.originLabel);
 
             // ── draggable dot ──
             // Use radius 1 geometry; actual visible size is driven by mesh.scale in updateSPlaneGrid
@@ -1214,6 +1215,7 @@
         function updateSPlaneGrid() {
             const b = getVisibleBounds();
             const zoom = controlsSPlane.zoom;
+            const zoomChanged = !isFinite(sPlaneGrid.lastZoom) || Math.abs(zoom - sPlaneGrid.lastZoom) > 1e-6;
 
             // ── pick a nice step that keeps grid density reasonable ──
             const rawSpan = Math.max(b.right - b.left, b.top - b.bottom);
@@ -1254,51 +1256,55 @@
             }
             for (; gi < sPlaneGrid.gridLines.length; gi++) sPlaneGrid.gridLines[gi].visible = false;
 
-            // ── arrows (stick to visible edges, tip size scales with zoom) ──
+            // ── arrows: always reposition, but only rebuild geometry if zoom changed ──
             const arrowLen    = 0.4  / zoom;
             const arrowHead   = 0.2  / zoom;
-            const arrowRadius = 0.04 / zoom;
-            // ArrowHelper doesn't let us resize after creation, so we rebuild the
-            // cone (child[1]) and the shaft (child[0]) geometry each frame.
-            // child[0] = shaft Line, child[1] = cone Mesh
+            const arrowRadius = 0.08 / zoom;
+
             [sPlaneGrid.axisArrows[0], sPlaneGrid.axisArrows[1]].forEach((arrow, idx) => {
-                // Reposition the base so the tip lands at the viewport edge
                 if (idx === 0) {
                     arrow.position.set(b.right - arrowLen, 0, 0.01);
                 } else {
                     arrow.position.set(0, b.top - arrowLen, 0.01);
                 }
-                // Rebuild cone geometry to match current zoom
-                const cone = arrow.children[1];   // the ConeGeometry mesh
-                cone.geometry.dispose();
-                cone.geometry = new THREE.ConeGeometry(arrowRadius, arrowHead, 8);
-                // Cone is positioned so its base sits at arrowLen - arrowHead
-                cone.position.y = arrowLen - arrowHead / 2;
-                // Rebuild shaft so it stops where the cone base starts
-                const shaft = arrow.children[0];  // the Line
-                shaft.geometry.dispose();
-                shaft.geometry = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(0, 0, 0),
-                    new THREE.Vector3(0, arrowLen - arrowHead, 0)
-                ]);
-                shaft.geometry.computeBoundingSphere();
+                
+                if (zoomChanged) {
+                    const cone = arrow.children[1];
+                    cone.geometry.dispose();
+                    cone.geometry = new THREE.ConeGeometry(arrowRadius, arrowHead, 8);
+                    cone.position.y = arrowLen - arrowHead / 2;
+                    
+                    const shaft = arrow.children[0];
+                    shaft.geometry.dispose();
+                    shaft.geometry = new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(0, 0, 0),
+                        new THREE.Vector3(0, arrowLen - arrowHead, 0)
+                    ]);
+                    shaft.geometry.computeBoundingSphere();
+                }
             });
 
-            // ── axis labels (σ, iω) – position + scale ──
-            const axisLabelScale = 0.8 / zoom;
-            sPlaneGrid.axisLabels[0].position.set(b.right + 0.05 / zoom, 0, 0.01);
-            sPlaneGrid.axisLabels[0].scale.set(axisLabelScale, axisLabelScale / 2, 1);
-            sPlaneGrid.axisLabels[1].position.set(0, b.top + 0.05 / zoom, 0.01);
-            sPlaneGrid.axisLabels[1].scale.set(axisLabelScale, axisLabelScale / 2, 1);
+            // ── axis labels, origin label, dot: only update if zoom changed ──
+            if (zoomChanged) {
+                const axisLabelScale = 0.8 / zoom;
+                sPlaneGrid.axisLabels[0].position.set(b.right + 0.05 / zoom, 0, 0.01);
+                sPlaneGrid.axisLabels[0].scale.set(axisLabelScale, axisLabelScale / 2, 1);
+                sPlaneGrid.axisLabels[1].position.set(0, b.top + 0.05 / zoom, 0.01);
+                sPlaneGrid.axisLabels[1].scale.set(axisLabelScale, axisLabelScale / 2, 1);
 
-            // ── origin label ──
-            const originLabelScale = 0.5 / zoom;
-            sPlaneGrid.originLabel.position.set(-0.4 / zoom, -0.4 / zoom, 0.01);
-            sPlaneGrid.originLabel.scale.set(originLabelScale, originLabelScale / 2, 1);
+                // Origin label removed
+                // const originLabelScale = Math.max(0.25, 0.5 / zoom);
+                // sPlaneGrid.originLabel.position.set(-0.4 / zoom, -0.4 / zoom, 0.01);
+                // sPlaneGrid.originLabel.scale.set(originLabelScale, originLabelScale / 2, 1);
 
-            // ── dot size ──
-            const dotRadius = 0.12 / zoom;
-            if (draggableDot) draggableDot.scale.setScalar(dotRadius);
+                const dotRadius = 0.12 / zoom;
+                if (draggableDot) draggableDot.scale.setScalar(dotRadius);
+            } else {
+                // On pure pan, just update label positions (not scale)
+                sPlaneGrid.axisLabels[0].position.set(b.right + 0.05 / zoom, 0, 0.01);
+                sPlaneGrid.axisLabels[1].position.set(0, b.top + 0.05 / zoom, 0.01);
+                // sPlaneGrid.originLabel.position.set(-0.4 / zoom, -0.4 / zoom, 0.01);
+            }
 
             // ── tick marks + numeric labels ──
             const tickSize = 0.12 / zoom;
@@ -1360,8 +1366,11 @@
                 sPlaneGrid.tickLabels[ti].visible = false;
             }
 
-            // ── rebuild pole X markers at current zoom so they scale ──
-            rebuildPoleXGeometry();
+            // ── rebuild pole X markers only if zoom changed ──
+            if (zoomChanged) {
+                rebuildPoleXGeometry();
+                sPlaneGrid.lastZoom = zoom;
+            }
         }
 
         function formatNum(v) {
@@ -1597,7 +1606,7 @@
             
             switch(currentFunction) {
                 case 'exp':
-                    closedFormula = `\\frac{1}{${s} + ${pair.params.a}}`;
+                    closedFormula = `\\frac{1}{${s} + a}`;
                     break;
                 case 'constant':
                     closedFormula = `\\frac{1}{${s}}`;
@@ -1615,10 +1624,10 @@
                     closedFormula = `\\frac{${s}}{${s}^2 + \\omega^2}`;
                     break;
                 case 'exp_sin':
-                    closedFormula = `\\frac{\\omega}{(${s} + ${pair.params.a})^2 + \\omega^2}`;
+                    closedFormula = `\\frac{\\omega}{(${s} + a)^2 + \\omega^2}`;
                     break;
                 case 'exp_cos':
-                    closedFormula = `\\frac{${s} + ${pair.params.a}}{(${s} + ${pair.params.a})^2 + \\omega^2}`;
+                    closedFormula = `\\frac{${s} + a}{(${s} + a)^2 + \\omega^2}`;
                     break;
             }
             
@@ -1657,7 +1666,7 @@
             const poles = getPoles();
             // Base snap radius in world units; dividing by zoom means when zoomed in
             // the snap zone covers more world-space → more leeway for the user.
-            const snapRadius = 0.04 / controlsSPlane.zoom;
+            const snapRadius = 0.08 / controlsSPlane.zoom;
             let bestDist = Infinity;
             let bestPole = null;
             poles.forEach(p => {
@@ -1683,7 +1692,7 @@
             // once the snap fires the dot lands exactly on the pole, which is
             // trivially < this threshold.  Outside the snap radius the dot is
             // always farther away than this threshold so it never falsely triggers.
-            const POLE_THRESHOLD = 0.04 / controlsSPlane.zoom;
+            const POLE_THRESHOLD = 0.08 / controlsSPlane.zoom;
             const nearPole = distToPoles() < POLE_THRESHOLD;
 
             // ── 3D curve: always drawn from the windowed numerical integration ──
@@ -1845,8 +1854,11 @@
             const mouse = new THREE.Vector2();
 
             function getMousePosition(e, rect) {
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
+                // Handle both mouse events (e.clientX) and touch events (e.touches[0].clientX)
+                const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+                const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
                 return {
                     x: (x / rect.width) * 2 - 1,
                     y: -(y / rect.height) * 2 + 1
@@ -1883,10 +1895,10 @@
                 if (controlsSPlane.isPinching && e.touches && e.touches.length === 2) {
                     e.preventDefault();
                     const currentDistance = getPinchDistance(e.touches[0], e.touches[1]);
-                    const delta = currentDistance - controlsSPlane.previousPinchDistance;
+                    const ratio = currentDistance / controlsSPlane.previousPinchDistance;
                     
-                    controlsSPlane.zoom = Math.max(0.3, Math.min(5, 
-                        controlsSPlane.zoom + delta * 0.005));
+                    controlsSPlane.zoom = Math.max(0.3, Math.min(10, 
+                        controlsSPlane.zoom * ratio));
                     updateSPlaneCameraPosition();
                     
                     controlsSPlane.previousPinchDistance = currentDistance;
@@ -1920,6 +1932,7 @@
                 window.removeEventListener('mouseup', onPointerUp);
                 window.removeEventListener('touchmove', onPointerMove);
                 window.removeEventListener('touchend', onPointerUp);
+                window.removeEventListener('touchcancel', onPointerUp);
             };
 
             const onPointerDown = (e) => {
@@ -1978,12 +1991,14 @@
                 window.addEventListener('mouseup', onPointerUp);
                 window.addEventListener('touchmove', onPointerMove, { passive: false });
                 window.addEventListener('touchend', onPointerUp);
+                window.addEventListener('touchcancel', onPointerUp);
             };
 
             const onWheel = (e) => {
                 e.preventDefault();
-                controlsSPlane.zoom = Math.max(0.3, Math.min(5, 
-                    controlsSPlane.zoom - e.deltaY * 0.001));
+                const zoomFactor = Math.exp(-e.deltaY * 0.001);
+                controlsSPlane.zoom = Math.max(0.3, Math.min(10, 
+                    controlsSPlane.zoom * zoomFactor));
                 updateSPlaneCameraPosition();
             };
 
@@ -2035,6 +2050,7 @@
                 window.removeEventListener('mouseup', onPointerUp);
                 window.removeEventListener('touchmove', onPointerMove);
                 window.removeEventListener('touchend', onPointerUp);
+                window.removeEventListener('touchcancel', onPointerUp);
             };
 
             const onPointerDown = (e) => {
@@ -2062,6 +2078,7 @@
                 window.addEventListener('mouseup', onPointerUp);
                 window.addEventListener('touchmove', onPointerMove, { passive: false });
                 window.addEventListener('touchend', onPointerUp);
+                window.addEventListener('touchcancel', onPointerUp);
             };
 
             const onWheel = (e) => {
