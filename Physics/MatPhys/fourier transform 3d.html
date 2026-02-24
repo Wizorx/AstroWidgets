@@ -182,6 +182,7 @@
                 height: 60vh;
                 z-index: 15;
                 pointer-events: auto;
+                touch-action: none;
             }
             
             #freq-slider-mobile {
@@ -194,6 +195,7 @@
                 transform-origin: center;
                 cursor: pointer;
                 pointer-events: auto;
+                touch-action: none;
             }
         }
         
@@ -841,7 +843,6 @@
 
             const curvePoints = [];
             
-            // Use t from tMin to tMax
             for (let i = 0; i < samples; i++) {
                 const t = tMin + (i / samples) * tRange;
                 const ft = evaluateFunction(t);
@@ -854,7 +855,6 @@
                 
                 const x = ft * expReal;
                 const y = ft * expImag;
-                // z position now directly corresponds to t value
                 curvePoints.push(new THREE.Vector3(x, y, t));
             }
 
@@ -1006,7 +1006,6 @@
             }
             if (freqSliderMobile) {
                 freqSliderMobile.addEventListener('input', handleSliderInput);
-                // FIX: Remove stopPropagation to allow slider to work on mobile
             }
 
             const handleFunctionInput = (e) => {
@@ -1062,8 +1061,23 @@
                 resizeViewport('freq');
             });
 
+            // FIX: Only block touchmove on the canvas viewports themselves,
+            // not on sliders or other interactive elements.
+            const timeCanvas = rendererTime.domElement;
+            const freqCanvas = rendererFreq.domElement;
+
             document.body.addEventListener('touchmove', (e) => {
-                e.preventDefault();
+                const touch = e.touches[0];
+                const target = e.target;
+                // Allow native behavior for sliders and text inputs so they remain draggable
+                if (target && (target.type === 'range' || target.type === 'text')) {
+                    return;
+                }
+                // Only suppress scrolling when the touch is on one of the 3D canvases
+                if (isPointInElement(touch.clientX, touch.clientY, timeCanvas) ||
+                    isPointInElement(touch.clientX, touch.clientY, freqCanvas)) {
+                    e.preventDefault();
+                }
             }, { passive: false });
         }
 
