@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #191919; display: flex; justify-content: center; align-items: center; width: 100vw; height: 100vh; overflow: hidden; }
+    #container { width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+
+  <script type="module">
+    import { Dot3D, YELLOW, makeDraggable, Text, ThreeDAxes, ThreeDScene, UP, DOWN, RIGHT, OUT, Line3D, Angle, MathTex, WHITE, DashedLine, PolarPlane, Cylinder} from 'https://esm.sh/manim-web@0.3.21';
+
+    function addVectors(a,b){
+        return a.map((e,i) => e + b[i]);
+    }
+
+    function scalarMult(a,b){
+        return a.map((e,i) => e * b);
+    }
+
+
+    const scene = new ThreeDScene(document.getElementById('container'), {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      backgroundColor: '#191919',
+      phi: 75 * (Math.PI / 180),
+      theta: -45 * (Math.PI / 180),
+      distance: 20,
+      fov: 30,
+      enableOrbitControls: true,
+      orbitControlsUp: 'z'
+    });
+
+    const axes = new ThreeDAxes({
+      xRange: [-5, 5, 1],
+      yRange: [-5, 5, 1],
+      zRange: [-5, 5, 1],
+      xLength: 10,
+      yLength: 10,
+      zLength: 10,
+      showTicks: false,
+
+    });
+
+    const plane = new PolarPlane({radius: 5, size: 10, radialDivisions:5, includeAngleLabels: true});
+    //plane.rotation.x = Math.PI / 2;
+
+    const dot = new Dot3D({ radius: 0.1, color: YELLOW }).moveTo(axes.coordsToPoint(1,1,1)).addUpdater(() => {});
+    makeDraggable(dot, scene, {constrainX: [-5,5], constrainY: [-5,5], constrainZ: [-5,5]});
+
+    const radiusProj = new Line3D({start: [0,0,0], end: axes.coordsToPoint(0,0,1), opacity:.5}).addUpdater((mob) => {
+      mob.setEnd([dot.getCenter()[0], dot.getCenter()[1], 0]);
+    });
+
+    const radiusDown = new Line3D({start: [0,0,0], end: axes.coordsToPoint(0,0,1), opacity:.5}).addUpdater((mob) => {
+      mob.setStart(dot.getCenter());
+      mob.setEnd(radiusProj.getEnd());
+    });
+  
+    
+    const thetaArc = new Angle({ points: [axes.coordsToPoint(1,0,0), axes.coordsToPoint(0,0,0), dot.getCenter()] }, { radius: 0.5 }).addUpdater((mob) => {
+      const newAngle = new Angle({ points: [axes.coordsToPoint(1,0,0), axes.coordsToPoint(0,0,0), radiusProj.getEnd()] }, { radius: 1});//radiusProj.getLength() });
+      mob.become(newAngle);
+    });
+        
+    
+    const theta = new Text({ text: 'θ', color: WHITE, fontSize: 22}).addUpdater((mob) => {
+      const newAngle = new Angle({ points: [axes.coordsToPoint(1,0,0), axes.coordsToPoint(0,0,0), radiusProj.getEnd()] }, { radius: 1});//radiusProj.getLength() });
+     mob.moveTo(scalarMult(newAngle.getArcMidpoint(), 1.25));
+    });
+
+    const z = new Text({ text: 'z', color: WHITE, fontSize: 22}).addUpdater((mob) => {
+      const newAngle = new Angle({ points: [axes.coordsToPoint(0,0,1), axes.coordsToPoint(0,0,0), radiusProj.getEnd()] }, { radius: 1 });//radius.getLength() });
+      mob.moveTo(scalarMult(radiusDown.getMidpoint(), 1.15));
+    });
+
+    const r = new Text({ text: 'r', color: WHITE, fontSize: 22}).addUpdater((mob) => {
+      mob.moveTo(addVectors(radiusProj.getMidpoint(), scalarMult(OUT, .4)));
+    });
+    
+    
+    const c1 = new Cylinder({radiusTop: 1, radiusBottom: 1, height: 10.01, color: WHITE, opacity: .05});
+    const c2 = new Cylinder({radiusTop: 2, radiusBottom: 2, height: 10.02, color: WHITE, opacity: .05});
+    const c3 = new Cylinder({radiusTop: 3, radiusBottom: 3, height: 10.03, color: WHITE, opacity: .05});
+    const c4 = new Cylinder({radiusTop: 4, radiusBottom: 4, height: 10.04, color: WHITE, opacity: .05});
+    const c5 = new Cylinder({radiusTop: 5, radiusBottom: 5, height: 10.05, color: WHITE, opacity: .05});
+    c1.rotation.x = -Math.PI/2;
+    c2.rotation.x = -Math.PI/2;
+    c3.rotation.x = -Math.PI/2;
+    c4.rotation.x = -Math.PI/2;
+    c5.rotation.x = -Math.PI/2;
+        
+    scene.add(plane, dot, radiusProj, radiusDown, thetaArc, theta, z, r, c1, c2, c3, c4, c5, );
+    scene.addFixedOrientationMobjects(theta, z, r);
+    await scene.wait(Infinity);
+  </script>
+</body>
+</html>
