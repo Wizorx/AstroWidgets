@@ -11,7 +11,7 @@
   <div id="container"></div>
 
   <script type="module">
-    import { Dot3D, YELLOW, makeDraggable, Text, ThreeDAxes, ThreeDScene, UP, DOWN, RIGHT, OUT, Line3D, Angle, MathTex, WHITE, DashedLine, PolarPlane, Cylinder} from 'https://esm.sh/manim-web@0.3.21';
+    import { Dot3D, YELLOW, makeDraggable, Text, ThreeDAxes, ThreeDScene, UP, DOWN, RIGHT, OUT, Line3D, Angle, MathTex, WHITE, DashedLine, PolarPlane, Cylinder} from 'https://esm.sh/manim-web@0.3.22';
 
     function addVectors(a,b){
         return a.map((e,i) => e + b[i]);
@@ -51,11 +51,11 @@
     const dot = new Dot3D({ radius: 0.1, color: YELLOW }).moveTo(axes.coordsToPoint(1,1,1)).addUpdater(() => {});
     makeDraggable(dot, scene, {constrainX: [-5,5], constrainY: [-5,5], constrainZ: [-5,5]});
 
-    const radiusProj = new Line3D({start: [0,0,0], end: axes.coordsToPoint(0,0,1), opacity:.5}).addUpdater((mob) => {
+    const radiusProj = new Line3D({start: [0,0,0], end: axes.coordsToPoint(0,0,1), lineWidth: 4}).addUpdater((mob) => {
       mob.setEnd([dot.getCenter()[0], dot.getCenter()[1], 0]);
     });
 
-    const radiusDown = new Line3D({start: [0,0,0], end: axes.coordsToPoint(0,0,1), opacity:.5}).addUpdater((mob) => {
+    const radiusDown = new Line3D({start: [0,0,0], end: axes.coordsToPoint(0,0,1), lineWidth: 4}).addUpdater((mob) => {
       mob.setStart(dot.getCenter());
       mob.setEnd(radiusProj.getEnd());
     });
